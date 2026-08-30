@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07101e">
+<title>Recovery — Marketplace Revenue Recovery V5</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js"></script>
+<style>
+:root{--bg:#07101e;--panel:#0e192b;--line:#223451;--text:#f7fbff;--muted:#91a2ba;--accent:#5ee2a0;--warn:#ffd166;--danger:#ff7b7b}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 80% -10%,#183357 0,transparent 28rem),var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"SF Pro Display",Segoe UI,sans-serif;min-height:100vh}
+.shell{max-width:1220px;margin:auto;padding:0 18px 100px}.top{height:74px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:30;background:rgba(7,16,30,.92);backdrop-filter:blur(18px);border-bottom:1px solid rgba(255,255,255,.06)}
+.brand{display:flex;gap:11px;align-items:center}.logo{width:40px;height:40px;border-radius:12px;background:var(--accent);color:#052217;display:grid;place-items:center;font-weight:900}.brand small{display:block;color:var(--muted);margin-top:2px}
+.topright{display:flex;gap:8px;align-items:center}.seller-pill{background:#0a1627;border:1px solid #2a405a;color:var(--text);border-radius:12px;padding:9px 11px;max-width:260px}
+.badge{font-size:11px;border:1px solid #324963;background:#16253a;color:#b7c5d8;border-radius:999px;padding:6px 10px}.good{color:var(--accent)}.warn{color:var(--warn)}
+nav.mainnav{display:flex;gap:8px;overflow:auto;margin:20px 0}.navbtn,.tab{border:1px solid #263d59;background:#122238;color:var(--muted);padding:9px 12px;border-radius:999px;cursor:pointer;white-space:nowrap}.navbtn.active,.tab.active{background:var(--accent);color:#07101e;border-color:var(--accent);font-weight:800}
+.hero{display:grid;grid-template-columns:1.4fr .8fr;gap:20px;padding:18px 0}.hero h1{font-size:clamp(34px,6vw,62px);line-height:.98;letter-spacing:-2px;margin:8px 0 14px}.hero p,.muted{color:var(--muted);line-height:1.55}.eyebrow{font-size:12px;color:var(--accent);font-weight:900;letter-spacing:.16em}
+.kpihero{background:linear-gradient(145deg,#132641,#0d1a2d);border:1px solid #284466;border-radius:22px;padding:24px;align-self:end}.kpihero span,.kpihero small{display:block;color:var(--muted)}.kpihero strong{font-size:34px;display:block;margin:8px 0}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.card,.panel{background:rgba(14,25,43,.92);border:1px solid var(--line);border-radius:20px}.card{padding:17px}.card span{display:block;color:var(--muted);font-size:13px}.card strong{display:block;font-size:26px;margin-top:5px}
+.panel{padding:20px;margin:14px 0}.paneltitle{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.paneltitle h2{margin:0;font-size:20px}.paneltitle>div{display:flex;align-items:center;gap:10px}.step{width:29px;height:29px;border-radius:9px;background:#193150;color:var(--accent);display:grid;place-items:center;font-weight:800}
+.view{display:none}.view.active{display:block}.twocol{display:grid;grid-template-columns:1fr 1fr;gap:12px}.threecol{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.fourcol{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+label.field{display:block}.field span{display:block;color:var(--muted);font-size:12px;margin-bottom:6px}.field input,.field select,.field textarea,.search{width:100%;background:#091523;border:1px solid #2a405a;border-radius:12px;color:var(--text);padding:12px;font-size:15px}.field textarea{min-height:95px;resize:vertical}
+button.primary,button.ghost,button.danger{border:0;border-radius:13px;padding:12px 15px;font-weight:800;cursor:pointer}.primary{background:var(--accent);color:#062017}.ghost{background:#15263c;color:#dce7f4;border:1px solid #2b425e!important}.danger{background:#3a1d26;color:#ffc9cf;border:1px solid #63323c!important}.full{width:100%}.actions{display:flex;gap:8px;flex-wrap:wrap}
+.drop{min-height:135px;border:1px dashed #43617d;border-radius:16px;padding:20px;background:#0a1627;display:flex;flex-direction:column;justify-content:center}.drop.has{border-color:var(--accent);background:#0b201d}.drop b{font-size:16px}.drop small{color:var(--muted);margin:6px 0 12px}.drop input{color:var(--muted)}
+.source-card{background:#0a1626;border:1px solid #20354f;border-radius:16px;padding:16px}.source-card h3{margin:0 0 7px}.source-card p{font-size:13px;color:var(--muted);line-height:1.45}
+.tablewrap{overflow:auto;border:1px solid #20344c;border-radius:14px;max-height:560px}table{border-collapse:collapse;width:100%;min-width:980px;font-size:12px}th,td{padding:10px;border-bottom:1px solid #1d3047;text-align:left}th{position:sticky;top:0;background:#102038;color:#94a7c0;z-index:2}.recover{color:var(--accent);font-weight:800}.empty{text-align:center!important;color:var(--muted);padding:36px!important}
+.callout{padding:12px 14px;border-radius:13px;font-size:13px;line-height:1.45}.okcall{background:#0c241f;border:1px solid #1f5a49;color:#b9f5dc}.warncall{background:#2a2412;border:1px solid #645729;color:#ffe8a3}
+.rulecard{border:1px solid #20354f;border-radius:14px;padding:14px;background:#0a1626;margin:10px 0}.rulehead{display:flex;justify-content:space-between;gap:10px;align-items:center}.rulegrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:10px}
+.rulegrid input,.rulegrid select{width:100%;background:#091523;border:1px solid #2a405a;border-radius:10px;color:var(--text);padding:9px}
+.contract-preview{white-space:pre-wrap;max-height:220px;overflow:auto;background:#091523;border:1px solid #20344c;border-radius:12px;padding:12px;color:#b9c7d9;font-size:12px}
+@media(max-width:800px){.hero,.twocol,.threecol,.fourcol,.grid4,.rulegrid{grid-template-columns:1fr}.topright .badge{display:none}.seller-pill{max-width:160px}.shell{padding:0 14px 90px}}
+</style>
+</head>
+<body>
+<div class="shell">
+<header class="top">
+ <div class="brand"><div class="logo">R</div><div><strong>Recovery</strong><small>Marketplace Revenue Recovery</small></div></div>
+ <div class="topright"><select id="activeSeller" class="seller-pill"></select><span class="badge good">V5 AutoDetect</span></div>
+</header>
+
+<nav class="mainnav">
+ <button class="navbtn active" data-view="dashboard">Dashboard</button>
+ <button class="navbtn" data-view="sellers">Sellers</button>
+ <button class="navbtn" data-view="fontes">Fontes</button>
+ <button class="navbtn" data-view="contratos">Contratos</button>
+ <button class="navbtn" data-view="regras">Regras</button>
+ <button class="navbtn" data-view="auditar">Auditar</button>
+ <button class="navbtn" data-view="casos">Casos</button>
+ <button class="navbtn" data-view="dossies">Dossiês</button>
+</nav>
+
+<section id="dashboard" class="view active">
+ <div class="hero">
+  <div><span class="eyebrow">MARKETPLACE REVENUE RECOVERY</span><h1>Recupere o dinheiro que os marketplaces estão deixando para trás.</h1>
+  <p>Auditoria automatizada de Mercado Livre, Shopee, Full, Flex, fretes e transportadoras. Identificamos cobranças indevidas, divergências e valores recuperáveis — pedido por pedido.</p></div>
+  <div class="kpihero"><span>Recovery identificado</span><strong id="heroRecovery">R$ 0,00</strong><small id="heroSub">Nenhuma auditoria nesta sessão</small></div>
+ </div>
+ <div class="grid4">
+  <article class="card"><span>Envios lidos</span><strong id="kShip">0</strong></article>
+  <article class="card"><span>Conciliados</span><strong id="kMatch">0</strong></article>
+  <article class="card"><span>Divergências</span><strong id="kDiff">0</strong></article>
+  <article class="card"><span>Pendentes</span><strong id="kPend">0</strong></article>
+ </div>
+ <div class="panel"><div class="paneltitle"><div><span class="step">✓</span><h2>Auditoria unificada por seller</h2></div><span class="badge good">ML + Shopee + outros</span></div>
+  <p class="muted">Cada auditoria pertence ao seller selecionado no topo. Mercado Livre, Shopee, outros marketplaces e todas as transportadoras desse seller entram no mesmo motor e no mesmo dossiê.</p>
+ </div>
+</section>
+
+<section id="sellers" class="view">
+ <div class="panel"><div class="paneltitle"><div><span class="step">1</span><h2>Sellers / Empresas</h2></div><span class="badge">multiempresa</span></div>
+  <div class="threecol">
+   <label class="field"><span>Nome da empresa</span><input id="sellerName" placeholder="Ex.: Seller A"></label>
+   <label class="field"><span>CNPJ / identificação</span><input id="sellerId" placeholder="Opcional"></label>
+   <label class="field"><span>Observação</span><input id="sellerNote" placeholder="Grupo, operação, contato..."></label>
+  </div>
+  <div class="actions" style="margin-top:12px"><button class="primary" id="addSeller">Adicionar seller</button><button class="ghost" id="deleteSeller">Excluir seller ativo</button></div>
+  <div id="sellerStatus" class="status"></div>
+  <div class="tablewrap" style="margin-top:12px;max-height:280px"><table><thead><tr><th>Seller</th><th>Identificação</th><th>Observação</th><th>Auditorias salvas</th></tr></thead><tbody id="sellerTable"></tbody></table></div>
+ </div>
+</section>
+
+<section id="fontes" class="view">
+ <div class="panel"><div class="paneltitle"><div><span class="step">2</span><h2>Fontes de dados do seller</h2></div><span class="badge good">tudo junto</span></div>
+  <p class="muted">Você pode usar API e planilhas ao mesmo tempo. O canal fica registrado em cada pedido para o dossiê separar Mercado Livre, Shopee e outros sem perder a visão consolidada.</p>
+  <div class="fourcol">
+    <div class="source-card"><h3>Mercado Livre</h3><p>API/OAuth ou CSV/XLSX de vendas e envios.</p><button class="ghost" id="mlApi">Conectar API</button></div>
+    <div class="source-card"><h3>Shopee</h3><p>CSV/XLSX com pedido, rastreamento, SKU e quantidade.</p><span class="badge good">upload ativo</span></div>
+    <div class="source-card"><h3>Outro marketplace</h3><p>Importe um layout diferente e mapeie as colunas.</p><span class="badge">genérico</span></div>
+    <div class="source-card"><h3>Transportadoras</h3><p>Uma ou várias empresas Flex/logística no mesmo período.</p><span class="badge good">multioperador</span></div>
+  </div>
+  <div class="callout okcall" style="margin-top:12px">Seller ativo agora: <b id="sourceSellerLabel"></b>. Todos os arquivos e regras abaixo ficam vinculados a ele.</div>
+ </div>
+</section>
+
+<section id="contratos" class="view">
+ <div class="panel"><div class="paneltitle"><div><span class="step">3</span><h2>Contratos, tabelas e aditivos</h2></div><span class="badge good">extração automática</span></div>
+  <div class="twocol">
+   <label class="drop" id="contractDrop"><b>Subir contrato ou tabela</b><small>PDF, DOCX, XLSX, XLS, CSV ou TXT. O sistema extrai o texto e sugere regras.</small><input id="contractFiles" type="file" multiple accept=".pdf,.docx,.xlsx,.xls,.csv,.txt"></label>
+   <div class="source-card"><h3>Análise de regras</h3><p>O parser identifica valores em R$, limites de quantidade, peso, altura, largura, comprimento, maior dimensão, cubagem e vigência. As sugestões só viram regra após sua confirmação.</p><button class="primary" id="analyzeContracts">Analisar contratos</button><div id="contractStatus" class="status"></div></div>
+  </div>
+  <h3>Texto extraído</h3><div id="contractPreview" class="contract-preview">Nenhum contrato analisado.</div>
+  <h3>Sugestões de regras</h3>
+  <div class="tablewrap" style="max-height:320px"><table><thead><tr><th>Fonte</th><th>Regra sugerida</th><th>Tarifa</th><th>Confiança</th><th>Ação</th></tr></thead><tbody id="suggestedRules"><tr><td colspan="5" class="empty">Nenhuma sugestão.</td></tr></tbody></table></div>
+  <div class="callout warncall" style="margin-top:12px">A extração funciona localmente. Para interpretação jurídica/semântica avançada por IA generativa, o backend poderá enviar o texto extraído ao modelo e receber regras estruturadas; nenhuma chave secreta fica no navegador.</div>
+ </div>
+</section>
+
+<section id="regras" class="view">
+ <div class="panel"><div class="paneltitle"><div><span class="step">4</span><h2>Regras comerciais do seller</h2></div><button class="primary" id="addRule">+ Regra manual</button></div>
+  <p class="muted">As regras podem combinar canal, transportadora, SKU/família, quantidade, altura, largura, comprimento, maior dimensão, peso e cubagem. Campos vazios significam “sem limite”.</p>
+  <div id="ruleList"></div>
+  <div class="actions" style="margin-top:12px"><button class="primary" id="saveRules">Salvar regras</button><button class="ghost" id="loadExample">Carregar exemplo Flex antigo</button></div>
+  <div id="ruleStatus" class="status"></div>
+ </div>
+</section>
+
+<section id="auditar" class="view">
+ <div class="panel"><div class="paneltitle"><div><span class="step">5</span><h2>Importar e auditar tudo junto</h2></div><span class="badge good">seller ativo</span></div>
+  <div class="fourcol">
+   <label class="drop"><b>Transportadoras / Flex</b><small>CSV/XLSX; pode selecionar vários operadores.</small><input id="carrierFiles" type="file" multiple accept=".csv,.xlsx,.xls"></label>
+   <label class="drop"><b>Mercado Livre</b><small>CSV/XLSX; vendas, shipments ou exportações.</small><input id="mlFiles" type="file" multiple accept=".csv,.xlsx,.xls"></label>
+   <label class="drop"><b>Shopee</b><small>CSV/XLSX com rastreamento/pedido/SKU/quantidade.</small><input id="shopeeFiles" type="file" multiple accept=".csv,.xlsx,.xls"></label>
+   <label class="drop"><b>Outro marketplace</b><small>CSV/XLSX genérico.</small><input id="otherFiles" type="file" multiple accept=".csv,.xlsx,.xls"></label>
+  </div>
+  <div class="callout okcall" style="margin-top:12px">Detecção automática ativa: mesmo se um arquivo for colocado no bloco errado, o Recovery tenta reconhecer Flex/transportadora, Mercado Livre e Shopee pelos cabeçalhos. Conciliação: rastreamento → pedido → shipment/order. Tudo é combinado na auditoria do seller <b id="auditSellerLabel"></b>.</div>
+  <button class="primary full" id="runAudit" style="margin-top:12px">Auditar seller agora</button>
+  <div id="auditStatus" class="status"></div>
+ </div>
+</section>
+
+<section id="casos" class="view">
+ <div class="panel"><div class="paneltitle"><div><span class="step">6</span><h2>Casos encontrados</h2></div><button class="ghost" id="exportBtn" disabled>Exportar rápido</button></div>
+  <div class="actions" style="margin-bottom:10px"><button class="tab active" data-filter="COBRAR">A cobrar</button><button class="tab" data-filter="PENDENTE">Pendentes</button><button class="tab" data-filter="ALL">Todos</button></div>
+  <input class="search" id="search" placeholder="Buscar canal, rastreamento, pedido, SKU ou transportadora">
+  <div class="tablewrap"><table><thead><tr><th>Canal</th><th>Transportadora</th><th>Rastreamento</th><th>Pedido</th><th>SKU</th><th>Qtd.</th><th>Dimensões</th><th>Peso</th><th>Cubagem</th><th>Cobrado</th><th>Regra</th><th>Recovery</th></tr></thead><tbody id="caseRows"><tr><td colspan="12" class="empty">Execute uma auditoria.</td></tr></tbody></table></div>
+ </div>
+</section>
+
+<section id="dossies" class="view">
+ <div class="panel"><div class="paneltitle"><div><span class="step">7</span><h2>Dossiês por seller</h2></div><span class="badge good">modelo executivo</span></div>
+  <p class="muted">Cada seller tem seu histórico. O Excel segue nosso modelo: Resumo Executivo, Dimensões × Quantidade e Pedidos Auditados, consolidando Mercado Livre, Shopee e outros canais.</p>
+  <div class="actions"><button class="primary" id="exportDossier">Exportar dossiê do seller ativo</button><button class="ghost" id="saveAudit">Salvar auditoria no histórico</button></div>
+  <div id="dossierStatus" class="status"></div>
+  <div class="tablewrap" style="margin-top:12px;max-height:320px"><table><thead><tr><th>Seller</th><th>Data</th><th>Período/nota</th><th>Envios</th><th>Divergências</th><th>Recovery</th></tr></thead><tbody id="auditHistory"></tbody></table></div>
+ </div>
+</section>
+</div>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const money=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0));
+const clean=v=>v==null?'':String(v).trim();
+const nk=s=>clean(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+const nt=v=>clean(v).replace(/\.0$/,'').replace(/\s/g,'');
+function number(v){if(typeof v==='number')return Number.isFinite(v)?v:null;let s=clean(v).replace(/R\$\s*/gi,'').replace(/\s/g,'');if(!s)return null;if(s.includes(',')&&s.includes('.'))s=s.replace(/\./g,'').replace(',','.');else if(s.includes(','))s=s.replace(',','.');const x=Number(s.replace(/[^0-9.-]/g,''));return Number.isFinite(x)?x:null}
+function cube(h,w,l){return (number(h)||0)*(number(w)||0)*(number(l)||0)}
+const state={
+ sellers:JSON.parse(localStorage.getItem('recV3Sellers')||'[]'),
+ activeSeller:localStorage.getItem('recV3ActiveSeller')||'',
+ rules:JSON.parse(localStorage.getItem('recV3Rules')||'{}'),
+ history:JSON.parse(localStorage.getItem('recV3History')||'[]'),
+ audit:{rows:[],stats:{}},
+ suggestions:[]
+};
+if(!state.sellers.length){state.sellers=[{id:'seller_demo',name:'Seller A',doc:'',note:'Exemplo'}];state.activeSeller='seller_demo';persist()}
+function persist(){localStorage.setItem('recV3Sellers',JSON.stringify(state.sellers));localStorage.setItem('recV3ActiveSeller',state.activeSeller);localStorage.setItem('recV3Rules',JSON.stringify(state.rules));localStorage.setItem('recV3History',JSON.stringify(state.history))}
+function seller(){return state.sellers.find(s=>s.id===state.activeSeller)||state.sellers[0]}
+function syncSellerUI(){
+ const sel=$('#activeSeller');sel.innerHTML=state.sellers.map(s=>`<option value="${s.id}" ${s.id===state.activeSeller?'selected':''}>${s.name}</option>`).join('');
+ $('#sourceSellerLabel').textContent=seller().name;$('#auditSellerLabel').textContent=seller().name;
+ $('#sellerTable').innerHTML=state.sellers.map(s=>`<tr><td>${s.name}</td><td>${s.doc||'—'}</td><td>${s.note||'—'}</td><td>${state.history.filter(h=>h.sellerId===s.id).length}</td></tr>`).join('');
+ renderRules();renderHistory();
+}
+$('#activeSeller').onchange=e=>{state.activeSeller=e.target.value;persist();syncSellerUI();resetAudit()}
+$('#addSeller').onclick=()=>{const name=clean($('#sellerName').value);if(!name){$('#sellerStatus').textContent='Informe o nome.';return}const id='s_'+Date.now();state.sellers.push({id,name,doc:clean($('#sellerId').value),note:clean($('#sellerNote').value)});state.activeSeller=id;persist();syncSellerUI();$('#sellerStatus').textContent='Seller criado e selecionado.'}
+$('#deleteSeller').onclick=()=>{if(state.sellers.length<=1){$('#sellerStatus').textContent='Mantenha pelo menos um seller.';return}state.sellers=state.sellers.filter(s=>s.id!==state.activeSeller);state.activeSeller=state.sellers[0].id;persist();syncSellerUI();resetAudit()}
+$$('.navbtn').forEach(b=>b.onclick=()=>{$$('.navbtn').forEach(x=>x.classList.remove('active'));b.classList.add('active');$$('.view').forEach(v=>v.classList.remove('active'));$('#'+b.dataset.view).classList.add('active')});
+$('#mlApi').onclick=()=>alert('OAuth preparado para backend seguro. O mesmo seller poderá combinar dados da API com uploads manuais de ML, Shopee e transportadoras.');
+
+function blankRule(seed={}){return {id:'r_'+Math.random().toString(36).slice(2),channel:seed.channel||'*',carrier:seed.carrier||'*',sku:seed.sku||'*',qmin:seed.qmin??1,qmax:seed.qmax??'',hmax:seed.hmax??'',wmax:seed.wmax??'',lmax:seed.lmax??'',dmax:seed.dmax??'',weight:seed.weight??'',cube:seed.cube??'',price:seed.price??12,from:seed.from||'',to:seed.to||'',source:seed.source||'Manual'}}
+function rules(){return state.rules[state.activeSeller]||(state.rules[state.activeSeller]=[])}
+function renderRules(){
+ const list=$('#ruleList'), arr=rules();
+ if(!arr.length){list.innerHTML='<div class="callout warncall">Nenhuma regra cadastrada para este seller.</div>';return}
+ list.innerHTML=arr.map((r,i)=>`<div class="rulecard" data-i="${i}"><div class="rulehead"><b>Regra ${i+1}</b><button class="danger delRule" data-i="${i}">Excluir</button></div>
+ <div class="rulegrid">
+ <input data-k="channel" value="${r.channel}" placeholder="Canal">
+ <input data-k="carrier" value="${r.carrier}" placeholder="Transportadora">
+ <input data-k="sku" value="${r.sku}" placeholder="SKU/Família">
+ <input data-k="qmin" value="${r.qmin}" placeholder="Qtd min">
+ <input data-k="qmax" value="${r.qmax}" placeholder="Qtd max">
+ <input data-k="hmax" value="${r.hmax}" placeholder="Altura máx cm">
+ <input data-k="wmax" value="${r.wmax}" placeholder="Largura máx cm">
+ <input data-k="lmax" value="${r.lmax}" placeholder="Comprimento máx cm">
+ <input data-k="dmax" value="${r.dmax}" placeholder="Maior dimensão máx cm">
+ <input data-k="weight" value="${r.weight}" placeholder="Peso máx g">
+ <input data-k="cube" value="${r.cube}" placeholder="Cubagem máx cm³">
+ <input data-k="price" value="${r.price}" placeholder="Tarifa R$">
+ <input data-k="from" value="${r.from}" type="date">
+ <input data-k="to" value="${r.to}" type="date">
+ <input value="${r.source}" disabled title="Fonte">
+ </div></div>`).join('');
+ $$('.delRule').forEach(b=>b.onclick=()=>{arr.splice(Number(b.dataset.i),1);persist();renderRules()});
+}
+$('#addRule').onclick=()=>{rules().push(blankRule());persist();renderRules()}
+$('#saveRules').onclick=()=>{$$('#ruleList .rulecard').forEach(card=>{const r=rules()[Number(card.dataset.i)];card.querySelectorAll('[data-k]').forEach(inp=>r[inp.dataset.k]=inp.value)});persist();$('#ruleStatus').textContent='Regras salvas para '+seller().name+'.'}
+$('#loadExample').onclick=()=>{
+ state.rules[state.activeSeller]=[
+  blankRule({channel:'*',carrier:'*',sku:'PALM*',qmin:1,qmax:3,price:12,source:'Benchmark Flex histórico'}),
+  blankRule({channel:'*',carrier:'*',sku:'10UN-PAINEL-60X30*',qmin:1,qmax:3,price:12,source:'Benchmark Flex histórico'}),
+  blankRule({channel:'*',carrier:'*',sku:'10UN-PAINEL-70*',qmin:1,qmax:3,price:12,source:'Benchmark Flex histórico'}),
+  blankRule({channel:'*',carrier:'*',sku:'WALL3D*',qmin:1,qmax:3,price:12,source:'Benchmark Flex histórico'}),
+  blankRule({channel:'*',carrier:'*',sku:'*',qmin:1,qmax:'',price:24,source:'Fallback — sem ajuste'})
+ ];persist();renderRules();$('#ruleStatus').textContent='Benchmark histórico carregado: famílias elegíveis 1–3 unidades = R$12; demais = R$24. Ajuste se necessário e salve.';
+}
+
+async function fileText(file){
+ const ext=file.name.split('.').pop().toLowerCase();
+ if(ext==='txt'||ext==='csv') return await file.text();
+ if(ext==='xlsx'||ext==='xls'){
+  const buf=await file.arrayBuffer();const wb=XLSX.read(buf,{type:'array'});return wb.SheetNames.map(n=>XLSX.utils.sheet_to_csv(wb.Sheets[n])).join('\n');
+ }
+ if(ext==='docx'){
+  const buf=await file.arrayBuffer();const res=await mammoth.extractRawText({arrayBuffer:buf});return res.value;
+ }
+ if(ext==='pdf'){
+  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const data=new Uint8Array(await file.arrayBuffer());const pdf=await pdfjsLib.getDocument({data}).promise;let out='';
+  for(let p=1;p<=pdf.numPages;p++){const page=await pdf.getPage(p);const tc=await page.getTextContent();out+=tc.items.map(i=>i.str).join(' ')+'\n'}
+  return out;
+ }
+ return '';
+}
+function suggestFromText(text,source){
+ const t=text.replace(/\s+/g,' ');
+ const out=[];
+ const moneyRx=/(?:R\$\s*)?(\d{1,4}(?:[.,]\d{1,2})?)/g;
+ const tariffPhrases=[...t.matchAll(/(?:tarifa|frete|valor|pre[cç]o)[^.;]{0,80}?(?:R\$\s*)?(\d{1,4}(?:[.,]\d{1,2})?)/gi)];
+ tariffPhrases.slice(0,8).forEach((m,idx)=>{
+   const frag=t.slice(Math.max(0,m.index-120),Math.min(t.length,m.index+220));
+   const price=number(m[1]);
+   const q=frag.match(/(?:at[eé]|de)\s*(\d+)\s*(?:unidades?|itens?)/i);
+   const d=frag.match(/(?:maior dimens[aã]o|dimens[aã]o)[^0-9]{0,20}(\d+(?:[.,]\d+)?)\s*cm/i);
+   const peso=frag.match(/(?:peso)[^0-9]{0,20}(\d+(?:[.,]\d+)?)\s*(kg|g)/i);
+   const cub=frag.match(/(?:cubagem|volume)[^0-9]{0,20}(\d+(?:[.,]\d+)?)\s*(cm3|cm³|m3|m³)/i);
+   let seed={price,source,channel:'*',carrier:'*',sku:'*'};
+   if(q)seed.qmax=number(q[1]);
+   if(d)seed.dmax=number(d[1]);
+   if(peso)seed.weight=number(peso[1])*(peso[2].toLowerCase()==='kg'?1000:1);
+   if(cub)seed.cube=number(cub[1])*(cub[2].toLowerCase().startsWith('m')?1000000:1);
+   out.push({seed,desc:frag.trim().slice(0,260),confidence:(q||d||peso||cub)?'Alta':'Média'});
+ });
+ return out;
+}
+$('#analyzeContracts').onclick=async()=>{
+ const files=[...$('#contractFiles').files];if(!files.length){$('#contractStatus').textContent='Selecione ao menos um arquivo.';return}
+ $('#contractStatus').textContent='Extraindo conteúdo...';let combined='',sugs=[];
+ for(const f of files){try{const txt=await fileText(f);combined+=`\n--- ${f.name} ---\n${txt.slice(0,12000)}\n`;sugs.push(...suggestFromText(txt,f.name))}catch(e){combined+=`\n[${f.name}: não foi possível extrair]\n`}}
+ $('#contractPreview').textContent=combined.slice(0,30000)||'Sem texto extraído.';state.suggestions=sugs;renderSuggestions();$('#contractStatus').textContent=`${files.length} arquivo(s) analisado(s); ${sugs.length} regra(s) sugerida(s).`;
+}
+function renderSuggestions(){
+ const tb=$('#suggestedRules');if(!state.suggestions.length){tb.innerHTML='<tr><td colspan="5" class="empty">Nenhuma sugestão.</td></tr>';return}
+ tb.innerHTML=state.suggestions.map((s,i)=>`<tr><td>${s.seed.source}</td><td>${s.desc}</td><td>${money(s.seed.price)}</td><td>${s.confidence}</td><td><button class="primary acceptSuggestion" data-i="${i}">Adicionar</button></td></tr>`).join('');
+ $$('.acceptSuggestion').forEach(b=>b.onclick=()=>{rules().push(blankRule(state.suggestions[Number(b.dataset.i)].seed));persist();renderRules();b.textContent='Adicionada';b.disabled=true});
+}
+
+
+function detectFileKind(headers,fileName=''){
+ const hs=headers.map(nk).join('|'), fn=nk(fileName);
+ let flex=0, ml=0, shopee=0;
+ ['idetiqueta','valorflex','valorcobradoflex','zona','contaflex','dimensaoflex'].forEach(k=>{if(hs.includes(k))flex+=3});
+ ['numerodevenda','nvenda','mercadolivre','mercadoshops','receitaporprodutos','tarifadevenda','depositoconta'].forEach(k=>{if(hs.includes(k)||fn.includes(k))ml+=2});
+ ['idpedido','numeroderastreamento','shopee','skureferencia','quantidade'].forEach(k=>{if(hs.includes(k)||fn.includes(k))shopee+=2});
+ if(fn.includes('orderall'))shopee+=6;
+ if(fn.includes('prospecta2qz')||fn.includes('prospecta1qz'))flex+=6;
+ if(fn.includes('vendasbrmercadolivre')||fn.includes('mercadolivre'))ml+=6;
+ if(flex>=ml && flex>=shopee && flex>=4)return 'TRANSPORTADORA';
+ if(shopee>ml && shopee>=4)return 'SHOPEE';
+ if(ml>=4)return 'ML';
+ return 'OUTRO';
+}
+async function autoRowsFromFile(file,declaredChannel){
+ const ext=file.name.split('.').pop().toLowerCase();let sheets=[];
+ if(ext==='csv'){
+   const txt=await file.text();const wb=XLSX.read(txt,{type:'string'});
+   sheets=[[wb.SheetNames[0],XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''})]];
+ } else {
+   const buf=await file.arrayBuffer();const wb=XLSX.read(buf,{type:'array'});
+   sheets=wb.SheetNames.map(sn=>[sn,XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:''})]);
+ }
+ let all=[], detectedKinds=[];
+ for(const [sheetName,aoa] of sheets){
+   if(!aoa.length)continue;
+   let hidx=aoa.findIndex(r=>r.some(c=>/rastream|tracking|pedido|sku|valor flex|valor cobrado|unidades|quantidade|etiqueta/i.test(clean(c))));
+   if(hidx<0)hidx=0;
+   const headers=aoa[hidx].map(nk);
+   const kind=detectFileKind(headers,file.name);
+   detectedKinds.push(kind);
+   const getFactory=r=>(...keys)=>{for(const k of keys){let j=headers.findIndex(h=>h.includes(k));if(j>=0&&clean(r[j]))return r[j]}return''};
+   for(const r of aoa.slice(hidx+1)){
+      const get=getFactory(r);
+      const row={
+        channel:kind, detectedKind:kind, declaredChannel, source:file.name+'::'+sheetName,
+        tracking:nt(get('numeroderastreamento','rastreamento','tracking','idetiqueta')),
+        order:nt(get('numerodevenda','nvenda','idpedido','pedido','orderid')),
+        sku:clean(get('sku')),
+        qty:number(get('unidades','quantidade','quantity')),
+        h:number(get('altura','height')), w:number(get('largura','width')), l:number(get('comprimento','length')),
+        weight:number(get('peso','weight')),
+        charged:number(get('valorflex','valorcobradoflex','valorcobrado','charged')),
+        carrier:kind==='TRANSPORTADORA'?(clean(get('transportadora','carrier'))||'Flex/Transportadora'):''
+      };
+      if(row.tracking||row.order||row.sku||row.charged!=null)all.push(row);
+   }
+ }
+ all._detectedKinds=[...new Set(detectedKinds)];
+ return all;
+}
+
+async function rowsFromFile(file,channel){
+ const ext=file.name.split('.').pop().toLowerCase();let aoa=[];
+ if(ext==='csv'){const txt=await file.text();const wb=XLSX.read(txt,{type:'string'});const sh=wb.Sheets[wb.SheetNames[0]];aoa=XLSX.utils.sheet_to_json(sh,{header:1,defval:''})}
+ else {const buf=await file.arrayBuffer();const wb=XLSX.read(buf,{type:'array'});for(const sn of wb.SheetNames){const sh=wb.Sheets[sn];aoa.push(...XLSX.utils.sheet_to_json(sh,{header:1,defval:''}))}}
+ if(!aoa.length)return [];
+ let hidx=aoa.findIndex(r=>r.some(c=>/rastream|tracking|pedido|sku|valor flex|unidades|quantidade/i.test(clean(c))));
+ if(hidx<0)hidx=0;const headers=aoa[hidx].map(nk);
+ return aoa.slice(hidx+1).map(r=>{const get=(...keys)=>{for(const k of keys){let j=headers.findIndex(h=>h.includes(k));if(j>=0&&clean(r[j]))return r[j]}return''};
+   return {channel,source:file.name,tracking:nt(get('numeroderastreamento','rastreamento','tracking','idetiqueta')),order:nt(get('numerodevenda','nvenda','idpedido','pedido','orderid')),sku:clean(get('sku')),qty:number(get('unidades','quantidade','quantity')),h:number(get('altura','height')),w:number(get('largura','width')),l:number(get('comprimento','length')),weight:number(get('peso','weight')),charged:number(get('valorflex','valorcobrado','charged','frete','tarifa')),carrier: channel==='TRANSPORTADORA'?clean(get('contaflex','transportadora','carrier')):''};
+ }).filter(x=>x.tracking||x.order||x.sku||x.charged!=null)
+}
+function matchRule(row){
+ const arr=rules();for(const r of arr){
+   if(r.channel!=='*'&&nk(r.channel)!==nk(row.channel))continue;
+   if(r.carrier!=='*'&&row.carrier&&!nk(row.carrier).includes(nk(r.carrier)))continue;
+   if(r.sku!=='*'&&r.sku){const p=nk(r.sku.replace('*',''));if(p&&!nk(row.sku).includes(p))continue}
+   const q=number(row.qty)||0;if(number(r.qmin)&&q<number(r.qmin))continue;if(number(r.qmax)&&q>number(r.qmax))continue;
+   if(number(r.hmax)&&number(row.h)>number(r.hmax))continue;if(number(r.wmax)&&number(row.w)>number(r.wmax))continue;if(number(r.lmax)&&number(row.l)>number(r.lmax))continue;
+   const mx=Math.max(number(row.h)||0,number(row.w)||0,number(row.l)||0);if(number(r.dmax)&&mx>number(r.dmax))continue;
+   if(number(r.weight)&&number(row.weight)>number(r.weight))continue;if(number(r.cube)&&cube(row.h,row.w,row.l)>number(r.cube))continue;
+   return r;
+ }
+ return null;
+}
+$('#runAudit').onclick=async()=>{
+ const groups=[
+   [[...$('#carrierFiles').files],'TRANSPORTADORA'],
+   [[...$('#mlFiles').files],'ML'],
+   [[...$('#shopeeFiles').files],'SHOPEE'],
+   [[...$('#otherFiles').files],'OUTRO']
+ ];
+ const totalFiles=groups.reduce((a,[fs])=>a+fs.length,0);
+ if(!totalFiles){$('#auditStatus').textContent='Selecione os arquivos. Pode jogar Flex, ML e Shopee nos blocos correspondentes; se inverter, a detecção automática tenta corrigir.';return}
+ $('#auditStatus').textContent='Detectando tipos de arquivo, lendo e conciliando...';
+ let carrierRows=[],marketRows=[],det={TRANSPORTADORA:0,ML:0,SHOPEE:0,OUTRO:0},failed=[];
+ for(const [files,declared] of groups){
+   for(const f of files){
+     try{
+       const rows=await autoRowsFromFile(f,declared);
+       const kinds=rows._detectedKinds||[];
+       kinds.forEach(k=>det[k]=(det[k]||0)+1);
+       rows.forEach(r=>{if(r.detectedKind==='TRANSPORTADORA')carrierRows.push(r);else marketRows.push(r)});
+     }catch(e){failed.push(f.name)}
+   }
+ }
+ if(!carrierRows.length){
+   $('#auditStatus').textContent=`Nenhum arquivo de Flex/transportadora foi detectado. Detectados: ML ${det.ML||0}, Shopee ${det.SHOPEE||0}, Outro ${det.OUTRO||0}.`;
+   return;
+ }
+ const byTrack=new Map(),byOrder=new Map();
+ marketRows.forEach(r=>{if(r.tracking&&!byTrack.has(r.tracking))byTrack.set(r.tracking,r);if(r.order&&!byOrder.has(r.order))byOrder.set(r.order,r)});
+ const out=[];let matched=0,diff=0,pending=0,ruleNotFound=0,total=0;
+ carrierRows.forEach(c=>{
+   const m=byTrack.get(c.tracking)||byOrder.get(c.order)||null;let row={...c};
+   if(m){matched++;row={...c,...m,carrier:c.carrier||'Flex/Transportadora',charged:c.charged,source:c.source+' + '+m.source};}
+   const rule=m?matchRule(row):null;
+   const correct=rule?number(rule.price):null;
+   const rec=correct!=null&&number(c.charged)!=null?Math.max(0,number(c.charged)-correct):0;
+   let status;
+   if(!m){status='UNMATCHED';pending++}
+   else if(!rule){status='RULE_NOT_FOUND';ruleNotFound++}
+   else if(rec>0){status='RECOVERY_CONFIRMED';diff++;total+=rec}
+   else status='MATCHED_NO_DIFFERENCE';
+   out.push({...row,charged:c.charged,correct,recovery:rec,status,rule:rule?`${rule.source}: ${money(rule.price)}`:'Sem regra'});
+ });
+ state.audit={rows:out,stats:{ship:carrierRows.length,matched,diff,pending,ruleNotFound,total,market:marketRows.length,sellerId:state.activeSeller,det}};
+ renderAudit();
+ let msg=`AUTO-DETECÇÃO: Flex/transportadora ${carrierRows.length} linhas; marketplace ${marketRows.length} linhas. Arquivos detectados: Flex ${det.TRANSPORTADORA||0}, ML ${det.ML||0}, Shopee ${det.SHOPEE||0}, Outro ${det.OUTRO||0}. ${matched} conciliados; ${diff} divergências; ${money(total)} recuperável.`;
+ if(ruleNotFound)msg+=` ATENÇÃO: ${ruleNotFound} conciliados ficaram SEM REGRA — não são R$0; precisam de regra/contrato.`;
+ if(failed.length)msg+=` Falha em: ${failed.join(', ')}.`;
+ $('#auditStatus').textContent=msg;
+ if(!diff && ruleNotFound && !rules().length){
+   $('#ruleStatus').textContent='Nenhuma regra ativa. Vá em Regras e carregue o benchmark Flex histórico ou cadastre o contrato.';
+ }
+}
+function resetAudit(){state.audit={rows:[],stats:{}};renderAudit()}
+function renderAudit(){
+ const s=state.audit.stats||{};$('#kShip').textContent=s.ship||0;$('#kMatch').textContent=s.matched||0;$('#kDiff').textContent=s.diff||0;$('#kPend').textContent=(s.pending||0)+(s.ruleNotFound||0);$('#heroRecovery').textContent=money(s.total||0);$('#heroSub').textContent=s.ship?`${seller().name} • ${s.diff||0} divergências`:'Nenhuma auditoria nesta sessão';$('#exportBtn').disabled=!state.audit.rows.length;renderCases();
+}
+let activeFilter='ALL';$$('.tab').forEach(b=>b.onclick=()=>{$$('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');activeFilter=b.dataset.filter;renderCases()});$('#search').oninput=renderCases;
+function renderCases(){
+ let rows=state.audit.rows||[];if(activeFilter!=='ALL')rows=rows.filter(r=>r.status===activeFilter);const q=nk($('#search').value);if(q)rows=rows.filter(r=>nk([r.channel,r.carrier,r.tracking,r.order,r.sku].join(' ')).includes(q));
+ $('#caseRows').innerHTML=rows.length?rows.slice(0,3000).map(r=>`<tr><td>${r.channel||'—'}</td><td>${r.carrier||'—'}</td><td>${r.tracking||'—'}</td><td>${r.order||'—'}</td><td>${r.sku||'—'}</td><td>${r.qty||'—'}</td><td>${[r.h,r.w,r.l].filter(x=>x!=null).join('×')||'—'}</td><td>${r.weight||'—'}</td><td>${cube(r.h,r.w,r.l)||'—'}</td><td>${money(r.charged)}</td><td>${r.rule}</td><td class="recover">${money(r.recovery)}</td></tr>`).join(''):'<tr><td colspan="12" class="empty">Nenhum caso neste filtro.</td></tr>';
+}
+function exportBook(){
+ if(!state.audit.rows.length)return;const s=seller(),rows=state.audit.rows,div=rows.filter(r=>r.status==='COBRAR'),total=div.reduce((a,r)=>a+r.recovery,0);
+ const resumo=[['RECOVERY — DOSSIÊ EXECUTIVO'],['Seller',s.name],['Identificação',s.doc||''],['Gerado em',new Date().toLocaleString('pt-BR')],[],['Envios auditados',rows.length],['Conciliados',state.audit.stats.matched||0],['Divergências',div.length],['Recovery comprovado',total],[],['Canais', [...new Set(rows.map(r=>r.channel).filter(Boolean))].join(', ')]];
+ const dims=[['Canal','SKU','Quantidade','Altura cm','Largura cm','Comprimento cm','Maior dimensão cm','Peso g','Cubagem cm³']];const seen=new Set();rows.forEach(r=>{const k=[r.channel,r.sku,r.qty,r.h,r.w,r.l,r.weight].join('|');if(!seen.has(k)){seen.add(k);dims.push([r.channel,r.sku,r.qty,r.h||'',r.w||'',r.l||'',Math.max(r.h||0,r.w||0,r.l||0)||'',r.weight||'',cube(r.h,r.w,r.l)||''])}});
+ const pedidos=[['Canal','Transportadora','Rastreamento','Pedido','SKU','Qtd.','Altura cm','Largura cm','Comprimento cm','Maior dimensão cm','Peso g','Cubagem cm³','Cobrado','Tarifa aplicada','Recovery','Status','Fonte']];rows.forEach(r=>pedidos.push([r.channel,r.carrier,r.tracking,r.order,r.sku,r.qty,r.h,r.w,r.l,Math.max(r.h||0,r.w||0,r.l||0),r.weight,cube(r.h,r.w,r.l),r.charged,r.correct,r.recovery,r.status,r.source]));
+ const wb=XLSX.utils.book_new();[['Resumo Executivo',resumo],['Dimensões x Quantidade',dims],['Pedidos Auditados',pedidos]].forEach(([n,d])=>XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(d),n));XLSX.writeFile(wb,`Recovery_${s.name.replace(/[^a-z0-9]+/gi,'_')}_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+$('#exportDossier').onclick=exportBook;$('#exportBtn').onclick=exportBook;
+$('#saveAudit').onclick=()=>{if(!state.audit.rows.length){$('#dossierStatus').textContent='Execute uma auditoria primeiro.';return}state.history.unshift({sellerId:state.activeSeller,seller:seller().name,date:new Date().toISOString(),note:'Auditoria unificada',ship:state.audit.stats.ship,diff:state.audit.stats.diff,total:state.audit.stats.total});persist();renderHistory();$('#dossierStatus').textContent='Auditoria salva no histórico do seller.'}
+function renderHistory(){const rows=state.history.filter(h=>h.sellerId===state.activeSeller);$('#auditHistory').innerHTML=rows.length?rows.map(h=>`<tr><td>${h.seller}</td><td>${new Date(h.date).toLocaleString('pt-BR')}</td><td>${h.note}</td><td>${h.ship}</td><td>${h.diff}</td><td class="recover">${money(h.total)}</td></tr>`).join(''):'<tr><td colspan="6" class="empty">Nenhuma auditoria salva para este seller.</td></tr>'}
+syncSellerUI();renderAudit();
+</script>
+</body></html>
