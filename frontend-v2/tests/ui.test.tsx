@@ -1,0 +1,58 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
+import { describe, expect, it } from "vitest";
+import { Dashboard } from "../src/pages/Dashboard/Dashboard";
+import { Audits } from "../src/pages/Audits/Audits";
+import { Findings } from "../src/pages/Findings/Findings";
+import { NewAudit } from "../src/pages/NewAudit/NewAudit";
+const renderPage = (node: React.ReactNode) =>
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>{node}</MemoryRouter>
+    </QueryClientProvider>,
+  );
+describe("Fase 1", () => {
+  it("renderiza dashboard e summary", async () => {
+    renderPage(<Dashboard />);
+    expect((await screen.findAllByText("R$ 81.736,00")).length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.getByText("Linhas processadas")).toBeInTheDocument();
+  });
+  it("filtra auditorias", async () => {
+    const user = userEvent.setup();
+    renderPage(<Audits />);
+    await screen.findByText("AUD-024");
+    await user.type(screen.getByLabelText("Buscar auditorias"), "Grupo Vitta");
+    expect(screen.queryByText("AUD-024")).not.toBeInTheDocument();
+    expect(screen.getByText("AUD-022")).toBeInTheDocument();
+  });
+  it("renderiza upload e lista arquivo", async () => {
+    const user = userEvent.setup();
+    const { container } = renderPage(<NewAudit />);
+    const input = container.querySelector(
+      "input[type=file]",
+    ) as HTMLInputElement;
+    await user.upload(input, new File(["a"], "flex.csv", { type: "text/csv" }));
+    expect(screen.getByText("flex.csv")).toBeInTheDocument();
+  });
+  it("filtra findings e abre drawer", async () => {
+    const user = userEvent.setup();
+    renderPage(<Findings />);
+    await screen.findByText("MEL245987310BR");
+    await user.click(screen.getByText("MEL245987310BR"));
+    expect(
+      screen.getByRole("dialog", { name: "Detalhe do finding" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Cadeia de evidências")).toBeInTheDocument();
+    await user.click(screen.getByLabelText("Fechar"));
+    await user.selectOptions(screen.getByLabelText("Status"), "PENDING");
+    expect(screen.getByText("MEL245985019BR")).toBeInTheDocument();
+  });
+});

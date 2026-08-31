@@ -1,0 +1,21 @@
+{
+  "finding_id": "finding_1",
+  "status": "OVERCHARGED",
+  "tracking_number": "MEL123",
+  "order_id": "20001",
+  "shipment_id": "9001",
+  "pack_id": null,
+  "sku": "WALL3D",
+  "quantity": 1,
+  "charged_amount": 24,
+  "expected_amount": 12,
+  "difference": 12,
+  "recoverable_amount": 12,
+  "rule_id": "flex-a",
+  "rule_version": "v3",
+  "marketplace": "Mercado Livre",
+  "carrier": "Flex SP",
+  "match_method": "tracking",
+  "confidence": 0.99,
+  "evidence": []
+}

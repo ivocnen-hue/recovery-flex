@@ -1,0 +1,18 @@
+{
+  "ok": true,
+  "schema_version": "1.0",
+  "audit_id": "audit_123",
+  "status": "COMPLETED",
+  "summary": {
+    "source_rows": 1073,
+    "normalized_rows": 1073,
+    "matched_rows": 1073,
+    "pending_rows": 0,
+    "overcharged_rows": 1073,
+    "ok_rows": 0,
+    "missing_charged_amount_rows": 0,
+    "total_recoverable": 12876
+  },
+  "warnings": [],
+  "errors": []
+}
