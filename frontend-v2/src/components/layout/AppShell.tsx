@@ -10,7 +10,7 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
-import { DEMO_MODE } from "../../hooks/useRecoveryData";
+import { DEMO_MODE, useWorkerHealth } from "../../hooks/useRecoveryData";
 const nav = [
   ["/", "Dashboard", LayoutDashboard],
   ["/audits", "Auditorias", Activity],
@@ -25,6 +25,7 @@ const titles: Record<string, [string, string]> = {
 };
 export function AppShell() {
   const [open, setOpen] = useState(false);
+  const worker = useWorkerHealth();
   const location = useLocation();
   const title = titles[location.pathname] ?? titles["/"];
   return (
@@ -95,6 +96,13 @@ export function AppShell() {
             </div>
           </div>
           <div className="top-actions">
+            <span className="demo-badge">
+              {worker.isSuccess
+                ? `Worker ${worker.data.version} conectado`
+                : worker.isError
+                  ? "Worker indisponível"
+                  : "Conectando Worker"}
+            </span>
             {DEMO_MODE && <span className="demo-badge">Demo mode</span>}
             <button className="icon desktop-search" aria-label="Buscar">
               <Search />

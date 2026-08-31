@@ -3,7 +3,7 @@ import { ApiErrorSchema } from "../contracts/schemas";
 import { RecoveryError } from "../lib/errors";
 const BASE_URL = (
   import.meta.env.VITE_API_BASE_URL ||
-  "https://recovery-api.ivocnen.workers.dev"
+  "https://recovery-audit-test.ivocnen.workers.dev"
 ).replace(/\/$/, "");
 type RequestOptions = RequestInit & { timeout?: number };
 export async function request<T>(

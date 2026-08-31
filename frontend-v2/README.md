@@ -17,7 +17,8 @@ Instale com pnpm install, copie .env.example para .env e inicie com pnpm dev.
 
 Variáveis públicas:
 
-- VITE_API_BASE_URL: origem do Worker, sem secrets.
+- VITE_API_BASE_URL: origem do Worker, sem secrets. Nesta branch, use o Worker
+  de homologação `https://recovery-audit-test.ivocnen.workers.dev`.
 - VITE_DEMO_MODE: true usa apenas src/mocks/demoData.ts; false tenta os endpoints reais.
 
 Nunca coloque tokens em variáveis VITE_*, pois elas entram no bundle público. Autenticação futura deve usar cookie HttpOnly.
@@ -49,6 +50,9 @@ O código legado expõe somente a chamada real POST /api/map-file. Ela não exec
 - GET /api/v1/audits/:id/evidence
 
 Enquanto isso, VITE_DEMO_MODE=true mostra um badge claro e nunca mistura mocks com respostas reais. Executar auditoria retorna NOT_IMPLEMENTED; não há fallback local.
+
+O health check real `GET /api/v1/health` é consultado mesmo em Demo Mode para
+confirmar a conexão com o Worker sem misturar respostas de auditoria simuladas.
 
 ## Evolução
 

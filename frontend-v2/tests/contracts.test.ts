@@ -5,8 +5,19 @@ import {
   AuditResponseSchema,
   EvidenceSchema,
   FindingSchema,
+  WorkerHealthSchema,
 } from "../src/contracts/schemas";
 describe("contrato Worker → frontend", () => {
+  it("aceita o health check versionado do Worker", () =>
+    expect(
+      WorkerHealthSchema.parse({
+        ok: true,
+        service: "Recovery Audit Engine",
+        version: "0.5.1",
+        features: ["deterministic audit"],
+        endpoints: ["/api/v1/health"],
+      }).version,
+    ).toBe("0.5.1"));
   it("aceita auditoria canônica 1.0", () =>
     expect(AuditResponseSchema.parse(audit).summary.total_recoverable).toBe(
       12876,

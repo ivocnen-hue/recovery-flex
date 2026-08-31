@@ -1,9 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { auditsApi } from "../api/audits";
 import { findingsApi } from "../api/findings";
+import { healthApi } from "../api/health";
 import { queryKeys } from "../api/queryKeys";
 import { demoAudit, demoAudits, demoFindings } from "../mocks/demoData";
 export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE !== "false";
+export const useWorkerHealth = () =>
+  useQuery({
+    queryKey: queryKeys.health(),
+    queryFn: healthApi.get,
+    staleTime: 60_000,
+    retry: false,
+  });
 export const useAuditSummary = () =>
   useQuery({
     queryKey: queryKeys.audit("latest"),

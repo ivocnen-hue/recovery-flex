@@ -1,5 +1,14 @@
 import { z } from "zod";
 export const SchemaVersion = z.literal("1.0");
+export const WorkerHealthSchema = z
+  .object({
+    ok: z.literal(true),
+    service: z.literal("Recovery Audit Engine"),
+    version: z.string(),
+    features: z.array(z.string()),
+    endpoints: z.array(z.string()),
+  })
+  .strict();
 export const AuditStatusSchema = z.enum([
   "DRAFT",
   "UPLOADING",

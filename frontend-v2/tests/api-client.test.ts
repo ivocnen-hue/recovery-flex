@@ -2,8 +2,27 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import audit from "./fixtures/audit-valid.json";
 import { request } from "../src/api/client";
 import { AuditResponseSchema } from "../src/contracts/schemas";
+import { healthApi } from "../src/api/health";
 afterEach(() => vi.unstubAllGlobals());
 describe("API client", () => {
+  it("consulta e valida o health check canônico", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            service: "Recovery Audit Engine",
+            version: "0.5.1",
+            features: ["deterministic audit"],
+            endpoints: ["/api/v1/health"],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    await expect(healthApi.get()).resolves.toMatchObject({ version: "0.5.1" });
+  });
   it("valida resposta antes de entregá-la à UI", async () => {
     vi.stubGlobal(
       "fetch",
