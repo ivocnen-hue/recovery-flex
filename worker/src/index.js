@@ -440,9 +440,71 @@ async function askAI(
 // SOURCE NORMALIZATION
 // ============================================================
 
+function splitDelimitedRecord(value, delimiter) {
+  const cells = [];
+  let current = "";
+  let quoted = false;
+  const text = String(value ?? "");
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (character === '"') {
+      if (quoted && text[index + 1] === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (character === delimiter && !quoted) {
+      cells.push(current.trim());
+      current = "";
+    } else {
+      current += character;
+    }
+  }
+  cells.push(current.trim());
+  return cells;
+}
+
+function likelyDelimiter(records) {
+  const delimiters = [";", "\t", ","];
+  return delimiters
+    .map(delimiter => ({
+      delimiter,
+      score: records.reduce((total, record) => total + Math.max(0, splitDelimitedRecord(record, delimiter).length - 1), 0)
+    }))
+    .sort((a, b) => b.score - a.score)[0];
+}
+
+export function repairStoredTabularLayout(headersInput, rowsInput) {
+  let headers = [...headersInput];
+  let rows = rowsInput.map(row => Array.isArray(row) ? [...row] : [row]);
+  const isEffectiveSingleCell = row => typeof row[0] === "string" && row.slice(1).every(value => !normalizeText(value));
+  const singleCellRecords = rows.filter(isEffectiveSingleCell).slice(0, 20).map(row => row[0]);
+  if (singleCellRecords.length >= Math.max(2, Math.ceil(Math.min(rows.length, 20) * 0.6))) {
+    const detected = likelyDelimiter(singleCellRecords);
+    if (detected?.score > 0) rows = rows.map(row => isEffectiveSingleCell(row) ? splitDelimitedRecord(row[0], detected.delimiter) : row);
+  }
+  if (headers.length === 1 && typeof headers[0] === "string") {
+    const detected = likelyDelimiter([headers[0], ...singleCellRecords.slice(0, 5)]);
+    if (detected?.score > 0) headers = splitDelimitedRecord(headers[0], detected.delimiter);
+  }
+
+  const inspectedRows = rows.slice(0, 100).filter(row => row.some(value => normalizeText(value)));
+  const extraColumnRows = inspectedRows.filter(row => row.length === headers.length + 1).length;
+  const accountIndex = headers.findIndex(header => comparableText(header) === "conta");
+  if (accountIndex >= 0 && inspectedRows.length && extraColumnRows / inspectedRows.length >= 0.6) {
+    headers.splice(accountIndex + 1, 0, "Conta empresarial");
+  }
+  return { headers, rows };
+}
+
 function normalizeSource(
   source = {}
 ) {
+  const repaired = repairStoredTabularLayout(
+    Array.isArray(source.headers) ? source.headers : [],
+    Array.isArray(source.rows) ? source.rows : []
+  );
   return {
     filename:
       source.filename ||
@@ -462,18 +524,10 @@ function normalizeSource(
         : {},
 
     headers:
-      Array.isArray(
-        source.headers
-      )
-        ? source.headers
-        : [],
+      repaired.headers,
 
     rows:
-      Array.isArray(
-        source.rows
-      )
-        ? source.rows
-        : []
+      repaired.rows
   };
 }
 

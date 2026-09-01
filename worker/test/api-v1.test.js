@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildAuditWorkbook, canonicalizeAudit, sourcesJsonByteLength, streamSourcesJson } from "../src/api-v1.js";
-import { sourceMappingKey } from "../src/index.js";
+import { repairStoredTabularLayout, sourceMappingKey } from "../src/index.js";
 
 const payload = {
   warnings: [],
@@ -41,6 +41,22 @@ describe("canonical API v1 adapter", () => {
     const different = { filename: "rules.csv", headers: ["SKU", "Preço"] };
     expect(sourceMappingKey(first, "seller-a")).toBe(sourceMappingKey(second, "seller-a"));
     expect(sourceMappingKey(first, "seller-a")).not.toBe(sourceMappingKey(different, "seller-a"));
+  });
+
+  it("repairs legacy Flex CSV rows stored in a single cell", () => {
+    const repaired = repairStoredTabularLayout(
+      ["Conta", "CEP", "Rastreio", "Dimensões", "Cobrado"],
+      [['PROSPECTA;04567000;ABC123;"10x20x30,500";12,00', null, null], ['PROSPECTA;04568000;ABC124;"11x21x31,600";12,00', null, null]],
+    );
+    expect(repaired.rows[0]).toEqual(["PROSPECTA", "04567000", "ABC123", "10x20x30,500", "12,00"]);
+  });
+
+  it("aligns the known extra company column after Conta", () => {
+    const repaired = repairStoredTabularLayout(
+      ["Conta", "CEP", "Rastreio"],
+      [["seller-1", "EMPRESA LTDA", "04567000", "ABC123"], ["seller-1", "EMPRESA LTDA", "04568000", "ABC124"]],
+    );
+    expect(repaired.headers).toEqual(["Conta", "Conta empresarial", "CEP", "Rastreio"]);
   });
 
   it("serializes staged rows as a stream without changing provenance", async () => {

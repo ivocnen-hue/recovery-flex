@@ -35,6 +35,10 @@ export function canonicalizeAudit(payload, input = {}, forcedAuditId) {
     const sourceFiles = Array.isArray(result?.evidence?.source_files)
       ? result.evidence.source_files.filter(Boolean)
       : [];
+    const reconciliationMethod = nullableText(result?.evidence?.reconciliation?.method);
+    const canonicalMatchMethod = reconciliationMethod === "unmatched"
+      ? null
+      : reconciliationMethod || (sourceFiles.length > 1 ? "identifier" : null);
     const evidence = sourceFiles.map((sourceFile, evidenceIndex) => ({
       evidence_id: `${findingId}:evidence:${evidenceIndex + 1}`,
       source_file: String(sourceFile),
@@ -44,7 +48,7 @@ export function canonicalizeAudit(payload, input = {}, forcedAuditId) {
       original_value: null,
       normalized_value: null,
       canonical_field: null,
-      match_method: nullableText(result?.evidence?.reconciliation?.method) || (sourceFiles.length > 1 ? "identifier" : null),
+      match_method: canonicalMatchMethod,
       confidence: nullableNumber(result?.evidence?.reconciliation?.confidence),
       rule: nullableText(result?.evidence?.source_reference),
       conflicts: [],
@@ -75,7 +79,7 @@ export function canonicalizeAudit(payload, input = {}, forcedAuditId) {
       rule_version: nullableText(result.matched_rule_set?.version || result.matched_rule_set),
       marketplace: nullableText(result.marketplace),
       carrier: nullableText(result.carrier),
-      match_method: nullableText(result?.evidence?.reconciliation?.method) || (sourceFiles.length > 1 ? "identifier" : null),
+      match_method: canonicalMatchMethod,
       confidence: nullableNumber(result?.evidence?.reconciliation?.confidence),
       technical_data: {
         dimensions_raw: nullableText(result?.technical_data?.dimensions_raw),
@@ -180,6 +184,15 @@ async function persistCanonical(env, canonical) {
     JSON.stringify(listItem.channels),
   ).run();
 
+  if (env.SOURCES) {
+    await env.SOURCES.put(
+      `audit-artifacts/${audit.audit_id}/findings.json`,
+      JSON.stringify(findings),
+      { httpMetadata: { contentType: "application/json; charset=utf-8" } },
+    );
+    return;
+  }
+
   await env.DB.prepare("DELETE FROM evidence WHERE audit_id = ?").bind(audit.audit_id).run();
   await env.DB.prepare("DELETE FROM findings WHERE audit_id = ?").bind(audit.audit_id).run();
 
@@ -198,14 +211,6 @@ async function persistCanonical(env, canonical) {
         JSON.stringify(finding),
       ),
     );
-    for (const item of finding.evidence) {
-      statements.push(
-        env.DB.prepare(
-          `INSERT INTO evidence (evidence_id, audit_id, finding_id, payload_json)
-           VALUES (?, ?, ?, ?)`,
-        ).bind(item.evidence_id, audit.audit_id, finding.finding_id, JSON.stringify(item)),
-      );
-    }
   }
   for (let index = 0; index < statements.length; index += 50) {
     await env.DB.batch(statements.slice(index, index + 50));
@@ -219,6 +224,20 @@ const parseJson = value => {
     return null;
   }
 };
+
+async function loadStoredFindings(env, auditId) {
+  if (env.SOURCES) {
+    const object = await env.SOURCES.get(`audit-artifacts/${auditId}/findings.json`);
+    if (object) {
+      const parsed = parseJson(await object.text());
+      if (Array.isArray(parsed)) return parsed;
+    }
+  }
+  const { results = [] } = await env.DB.prepare(
+    "SELECT payload_json FROM findings WHERE audit_id = ? ORDER BY rowid",
+  ).bind(auditId).all();
+  return results.map(row => parseJson(row.payload_json)).filter(Boolean);
+}
 
 async function listAudits(env, json) {
   const { results = [] } = await env.DB.prepare(
@@ -263,14 +282,12 @@ async function getFindings(env, json, auditId) {
     if (!latest) return apiError(json, 404, "AUDIT_NOT_FOUND", "Auditoria não encontrada.");
     auditId = latest.audit_id;
   }
-  const { results = [] } = await env.DB.prepare(
-    "SELECT payload_json FROM findings WHERE audit_id = ? ORDER BY rowid",
-  ).bind(auditId).all();
+  const findings = await loadStoredFindings(env, auditId);
   return json({
     ok: true,
     schema_version: SCHEMA_VERSION,
     audit_id: auditId,
-    items: results.map(row => parseJson(row.payload_json)).filter(Boolean),
+    items: findings,
     next_cursor: null,
   });
 }
@@ -281,14 +298,13 @@ async function getEvidence(env, json, auditId) {
     if (!latest) return apiError(json, 404, "AUDIT_NOT_FOUND", "Auditoria não encontrada.");
     auditId = latest.audit_id;
   }
-  const { results = [] } = await env.DB.prepare(
-    "SELECT payload_json FROM evidence WHERE audit_id = ? ORDER BY rowid",
-  ).bind(auditId).all();
+  const items = (await loadStoredFindings(env, auditId))
+    .flatMap(finding => Array.isArray(finding.evidence) ? finding.evidence : []);
   return json({
     ok: true,
     schema_version: SCHEMA_VERSION,
     finding_id: auditId,
-    items: results.map(row => parseJson(row.payload_json)).filter(Boolean),
+    items,
   });
 }
 
@@ -482,8 +498,7 @@ export function buildAuditWorkbook(audit, findings) {
 async function downloadDossier(env, json, auditId) {
   const audit = await env.DB.prepare("SELECT * FROM audits WHERE audit_id = ?").bind(auditId).first();
   if (!audit) return apiError(json, 404, "AUDIT_NOT_FOUND", "Auditoria não encontrada.");
-  const { results = [] } = await env.DB.prepare("SELECT payload_json FROM findings WHERE audit_id = ? ORDER BY rowid").bind(auditId).all();
-  const findings = results.map(row => parseJson(row.payload_json)).filter(Boolean);
+  const findings = await loadStoredFindings(env, auditId);
   const workbook = buildAuditWorkbook({
     ...audit,
     warnings: parseJson(audit.warnings_json) || [],
