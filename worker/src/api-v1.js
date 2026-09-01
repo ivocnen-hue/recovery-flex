@@ -119,10 +119,22 @@ export function canonicalizeAudit(payload, input = {}, forcedAuditId) {
 async function persistCanonical(env, canonical) {
   const { audit, listItem, findings } = canonical;
   await env.DB.prepare(
-    `INSERT OR REPLACE INTO audits
+    `INSERT INTO audits
       (audit_id, seller, marketplace, period, status, source_rows, findings,
        total_recoverable, summary_json, warnings_json, errors_json, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(audit_id) DO UPDATE SET
+       seller = excluded.seller,
+       marketplace = excluded.marketplace,
+       period = excluded.period,
+       status = excluded.status,
+       source_rows = excluded.source_rows,
+       findings = excluded.findings,
+       total_recoverable = excluded.total_recoverable,
+       summary_json = excluded.summary_json,
+       warnings_json = excluded.warnings_json,
+       errors_json = excluded.errors_json,
+       created_at = excluded.created_at`,
   ).bind(
     audit.audit_id,
     listItem.seller,
@@ -362,6 +374,7 @@ async function uploadSource(request, env, json, auditId) {
   const rawKey = `audits/${auditId}/raw/${sourceId}-${safeName}`;
   const parsedKey = `audits/${auditId}/parsed/${sourceId}.json`;
   const rowCount = parsed.sources.reduce((total, source) => total + source.rows.length, 0);
+  const sheetCount = parsed.kind === "rule" ? 1 : parsed.sources.length;
   await env.SOURCES.put(rawKey, parsed.file.stream(), {
     httpMetadata: { contentType: parsed.file.type || "application/octet-stream" },
     customMetadata: { audit_id: auditId, source_id: sourceId, filename: encodeURIComponent(parsed.file.name) },
@@ -370,20 +383,24 @@ async function uploadSource(request, env, json, auditId) {
     httpMetadata: { contentType: "application/json" },
     customMetadata: { audit_id: auditId, source_id: sourceId },
   };
-  const parsedStream = streamSourcesJson(parsed.sources);
-  if (typeof FixedLengthStream === "function") {
-    const fixed = new FixedLengthStream(sourcesJsonByteLength(parsed.sources));
-    await Promise.all([
-      parsedStream.pipeTo(fixed.writable),
-      env.SOURCES.put(parsedKey, fixed.readable, parsedOptions),
-    ]);
+  if (parsed.kind === "rule") {
+    await env.SOURCES.put(parsedKey, JSON.stringify(parsed.ruleSets), parsedOptions);
   } else {
-    await env.SOURCES.put(parsedKey, parsedStream, parsedOptions);
+    const parsedStream = streamSourcesJson(parsed.sources);
+    if (typeof FixedLengthStream === "function") {
+      const fixed = new FixedLengthStream(sourcesJsonByteLength(parsed.sources));
+      await Promise.all([
+        parsedStream.pipeTo(fixed.writable),
+        env.SOURCES.put(parsedKey, fixed.readable, parsedOptions),
+      ]);
+    } else {
+      await env.SOURCES.put(parsedKey, parsedStream, parsedOptions);
+    }
   }
   await env.DB.prepare(
     `INSERT INTO audit_sources
-      (source_id, audit_id, filename, raw_r2_key, parsed_r2_key, source_rows, sheets, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      (source_id, audit_id, filename, raw_r2_key, parsed_r2_key, source_rows, sheets, created_at, source_kind)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).bind(
     sourceId,
     auditId,
@@ -391,8 +408,9 @@ async function uploadSource(request, env, json, auditId) {
     rawKey,
     parsedKey,
     rowCount,
-    parsed.sources.length,
+    sheetCount,
     new Date().toISOString(),
+    parsed.kind,
   ).run();
   return json({
     ok: true,
@@ -401,7 +419,7 @@ async function uploadSource(request, env, json, auditId) {
     source_id: sourceId,
     filename: parsed.file.name,
     source_rows: rowCount,
-    sheets: parsed.sources.length,
+    sheets: sheetCount,
   }, 201);
 }
 
@@ -410,18 +428,20 @@ async function runStagedAudit(request, env, json, auditFull, auditFullInput, aud
   const audit = await env.DB.prepare("SELECT * FROM audits WHERE audit_id = ?").bind(auditId).first();
   if (!audit) return apiError(json, 404, "AUDIT_NOT_FOUND", "Auditoria não encontrada.");
   const { results = [] } = await env.DB.prepare(
-    "SELECT parsed_r2_key FROM audit_sources WHERE audit_id = ? ORDER BY created_at, source_id",
+    "SELECT parsed_r2_key, source_kind FROM audit_sources WHERE audit_id = ? ORDER BY created_at, source_id",
   ).bind(auditId).all();
   if (!results.length) return apiError(json, 400, "NO_SOURCES", "Envie ao menos um arquivo antes de executar a auditoria.");
   await env.DB.prepare("UPDATE audits SET status = 'PROCESSING' WHERE audit_id = ?").bind(auditId).run();
   const sources = [];
+  const ruleSets = [];
   try {
     for (const row of results) {
       const object = await env.SOURCES.get(row.parsed_r2_key);
       if (!object) throw new Error("Fonte armazenada não encontrada.");
       const stored = JSON.parse(await object.text());
       if (!Array.isArray(stored)) throw new Error("Fonte armazenada inválida.");
-      sources.push(...stored);
+      if (row.source_kind === "rule") ruleSets.push(...stored);
+      else sources.push(...stored);
     }
   } catch (error) {
     await env.DB.prepare("UPDATE audits SET status = 'FAILED', errors_json = ? WHERE audit_id = ?")
@@ -437,7 +457,7 @@ async function runStagedAudit(request, env, json, auditFull, auditFullInput, aud
     period_end: periodEnd || "",
     sources,
     rule_sources: [],
-    rule_sets: [],
+    rule_sets: ruleSets,
     product_catalog: [],
   }, auditId);
 }

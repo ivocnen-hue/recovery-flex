@@ -35,15 +35,28 @@ export const auditsApi = {
         { method: "POST", body: form, timeout: 180_000 },
       );
     }
-    return request(
-      "/api/v1/audits/" + encodeURIComponent(draft.audit_id) + "/run",
-      AuditResponseSchema,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: "{}",
-        timeout: 300_000,
-      },
-    );
+    try {
+      return await request(
+        "/api/v1/audits/" + encodeURIComponent(draft.audit_id) + "/run",
+        AuditResponseSchema,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: "{}",
+          timeout: 300_000,
+        },
+      );
+    } catch (error) {
+      try {
+        const recovered = await request(
+          "/api/v1/audits/" + encodeURIComponent(draft.audit_id),
+          AuditResponseSchema,
+        );
+        if (["COMPLETED", "REVIEW_REQUIRED"].includes(recovered.status)) return recovered;
+      } catch {
+        // Preserve the original execution error when no completed audit can be recovered.
+      }
+      throw error;
+    }
   },
 };

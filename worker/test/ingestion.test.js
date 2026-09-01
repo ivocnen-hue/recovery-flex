@@ -111,4 +111,30 @@ describe("backend file ingestion", () => {
       context: { marketplace: "Mercado Livre" },
     });
   });
+
+  it("recognizes a structured PDF rule as audit-scoped", async () => {
+    const rule = {
+      id: "frete_especifico_r12_v1",
+      version: "1.0",
+      scope: "attached_audit_only",
+      conditions: [
+        { field: "quantity", op: "lte", value: 3 },
+        { field: "weight_g", op: "lt", value: 2000 },
+        { field: "max_dimension_cm", op: "lte", value: 80 },
+      ],
+      calculation: { type: "fixed", amount: 12, currency: "BRL" },
+    };
+    const marker = `RECOVERY_RULE_B64_${btoa(JSON.stringify(rule))}`;
+    const form = new FormData();
+    form.append("file", new File([`%PDF-1.4\n/Keywords (${marker})`], "regra.pdf", { type: "application/pdf" }));
+    const parsed = await parseSingleAuditSource(new Request("https://example.test/api/v1/audits/a/sources", {
+      method: "POST",
+      body: form,
+    }));
+    expect(parsed).toMatchObject({
+      kind: "rule",
+      sources: [],
+      ruleSets: [{ rules: [{ id: "frete_especifico_r12_v1", calculation: { type: "fixed", amount: 12 } }] }],
+    });
+  });
 });

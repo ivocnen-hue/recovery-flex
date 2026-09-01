@@ -305,7 +305,7 @@ async function askAI(
     setTimeout(
       () =>
         controller.abort(),
-      20000
+      60000
     );
 
   try {
@@ -1385,6 +1385,9 @@ function canonicalRowFromSource(
       row.length_cm
     );
 
+  const dimensions = [row.height_cm, row.width_cm, row.length_cm].filter(value => safeNumber(value) !== null).map(Number);
+  row.max_dimension_cm = dimensions.length ? Math.max(...dimensions) : null;
+
   return row;
 }
 
@@ -1722,6 +1725,9 @@ function applyProductCatalog(
       out.width_cm,
       out.length_cm
     );
+
+  const dimensions = [out.height_cm, out.width_cm, out.length_cm].filter(value => safeNumber(value) !== null).map(Number);
+  out.max_dimension_cm = dimensions.length ? Math.max(...dimensions) : null;
 
   return out;
 }
@@ -2270,10 +2276,16 @@ export async function auditFullInput(
         sellerId
       );
 
-    const cachedMapper =
-      mapperCache.get(
-        cacheKey
-      );
+    let cachedMapper = mapperCache.get(cacheKey);
+
+    if (!cachedMapper && env.DB) {
+      try {
+        const cached = await env.DB.prepare("SELECT mapper_json FROM mapping_cache WHERE cache_key = ?").bind(cacheKey).first();
+        if (cached?.mapper_json) cachedMapper = JSON.parse(cached.mapper_json);
+      } catch {
+        cachedMapper = null;
+      }
+    }
 
     const mapped =
       cachedMapper
@@ -2300,6 +2312,17 @@ export async function auditFullInput(
           mapped.mapper
         )
       );
+      if (env.DB) {
+        try {
+          await env.DB.prepare(
+            "INSERT OR REPLACE INTO mapping_cache (cache_key, mapper_json, updated_at) VALUES (?, ?, ?)",
+          ).bind(cacheKey, JSON.stringify(mapped.mapper), new Date().toISOString()).run();
+        } catch {
+          // A cache is an optimization; an audit must remain correct if storage is unavailable.
+        }
+      }
+    } else {
+      mapperCache.set(cacheKey, structuredClone(cachedMapper));
     }
 
     mappedSources.push(

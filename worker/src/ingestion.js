@@ -104,6 +104,47 @@ export const csvSources = async (file, context) => {
   return parsed ? [{ filename: file.name, sheet: null, context, ...parsed }] : [];
 };
 
+const parseRulePdf = async file => {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const raw = new TextDecoder("latin1").decode(bytes);
+  const marker = raw.match(/RECOVERY_RULE_B64_([A-Za-z0-9+/=]+)/)?.[1];
+  if (!marker) throw new Error(`O PDF ${file.name} não contém uma regra Recovery estruturada.`);
+  let rule;
+  try {
+    const decoded = Uint8Array.from(atob(marker), character => character.charCodeAt(0));
+    rule = JSON.parse(new TextDecoder().decode(decoded));
+  } catch {
+    throw new Error(`A regra estruturada do PDF ${file.name} é inválida.`);
+  }
+  const allowedFields = new Set(["quantity", "weight_g", "max_dimension_cm"]);
+  const allowedOps = new Set(["lt", "lte", "gt", "gte", "eq"]);
+  if (
+    rule?.scope !== "attached_audit_only" ||
+    !Array.isArray(rule?.conditions) ||
+    !rule.conditions.length ||
+    rule.conditions.some(condition => !allowedFields.has(condition?.field) || !allowedOps.has(condition?.op)) ||
+    rule?.calculation?.type !== "fixed" ||
+    !Number.isFinite(Number(rule?.calculation?.amount))
+  ) {
+    throw new Error(`A regra do PDF ${file.name} não atende ao contrato seguro do Recovery.`);
+  }
+  return [{
+    name: `Regra anexada: ${file.name}`,
+    version: String(rule.version || "1.0"),
+    seller_id: null,
+    marketplace: null,
+    logistics_mode: null,
+    carrier: null,
+    rules: [{
+      id: String(rule.id || "regra_anexada"),
+      priority: 100,
+      conditions: rule.conditions,
+      calculation: { type: "fixed", amount: Number(rule.calculation.amount) },
+      source_reference: file.name,
+    }],
+  }];
+};
+
 export async function parseAuditUpload(request) {
   const contentLength = Number(request.headers.get("content-length") || 0);
   if (contentLength > UPLOAD_LIMITS.maxRequestBytes) {
@@ -166,17 +207,18 @@ export async function parseSingleAuditSource(request) {
     throw new Error(`O arquivo ${file.name} excede o limite de 25 MB.`);
   }
   const extension = extensionOf(file.name);
-  if (!["csv", "xls", "xlsx"].includes(extension)) {
-    throw new Error(`Formato não aceito: ${file.name}. Use CSV, XLS ou XLSX.`);
+  if (!["csv", "xls", "xlsx", "pdf"].includes(extension)) {
+    throw new Error(`Formato não aceito: ${file.name}. Use CSV, XLS, XLSX ou PDF.`);
   }
   const context = {
     marketplace: String(form.get("marketplace") || ""),
     logistics_mode: String(form.get("operation") || ""),
     carrier: String(form.get("carrier") || ""),
   };
-  const sources = extension === "csv"
-    ? await csvSources(file, context)
-    : await spreadsheetSources(file, context);
+  if (extension === "pdf") {
+    return { file, kind: "rule", sources: [], ruleSets: await parseRulePdf(file) };
+  }
+  const sources = extension === "csv" ? await csvSources(file, context) : await spreadsheetSources(file, context);
   if (!sources.length) throw new Error("Nenhuma aba ou linha utilizável foi encontrada.");
-  return { file, sources };
+  return { file, kind: "data", sources, ruleSets: [] };
 }

@@ -131,7 +131,7 @@ export function NewAudit() {
             <UploadCloud />
             <b>Arraste os arquivos ou clique para selecionar</b>
             <span>
-              CSV e XLSX · múltiplos arquivos · processados exclusivamente no
+              CSV, XLSX e PDF de regra · múltiplos arquivos · processados exclusivamente no
               backend
             </span>
           </button>
@@ -140,7 +140,7 @@ export function NewAudit() {
             className="sr-only"
             type="file"
             multiple
-            accept=".csv,.xlsx,.xls"
+            accept=".csv,.xlsx,.xls,.pdf"
             onChange={(e) => add(e.target.files)}
           />
           <div className="file-list">
