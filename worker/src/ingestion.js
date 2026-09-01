@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { parseLargeXlsx } from "./xlsx-streaming.js";
 
 export const UPLOAD_LIMITS = Object.freeze({
   maxFiles: 32,
@@ -72,6 +73,9 @@ export function parseCsv(text) {
 }
 
 export const spreadsheetSources = async (file, context) => {
+  if (file.size > 8 * 1024 * 1024 && String(file.name).toLowerCase().endsWith(".xlsx")) {
+    return parseLargeXlsx(file, context);
+  }
   const workbook = XLSX.read(await file.arrayBuffer(), {
     type: "array",
     cellDates: false,

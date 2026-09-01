@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canonicalizeAudit } from "../src/api-v1.js";
+import { canonicalizeAudit, sourcesJsonByteLength, streamSourcesJson } from "../src/api-v1.js";
 import { sourceMappingKey } from "../src/index.js";
 
 const payload = {
@@ -41,5 +41,13 @@ describe("canonical API v1 adapter", () => {
     const different = { filename: "rules.csv", headers: ["SKU", "Preço"] };
     expect(sourceMappingKey(first, "seller-a")).toBe(sourceMappingKey(second, "seller-a"));
     expect(sourceMappingKey(first, "seller-a")).not.toBe(sourceMappingKey(different, "seller-a"));
+  });
+
+  it("serializes staged rows as a stream without changing provenance", async () => {
+    const sources = [{ filename: "large.xlsx", sheet: "Vendas", headers: ["SKU"], rows: [["A"], ["B"]] }];
+    const serialized = await new Response(streamSourcesJson(sources)).text();
+    const stored = JSON.parse(serialized);
+    expect(stored).toEqual(sources);
+    expect(sourcesJsonByteLength(sources)).toBe(new TextEncoder().encode(serialized).byteLength);
   });
 });

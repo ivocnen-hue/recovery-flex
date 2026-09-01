@@ -2193,6 +2193,17 @@ async function auditFull(
   const body =
     await request.json();
 
+  return auditFullInput(
+    body,
+    env
+  );
+}
+
+export async function auditFullInput(
+  body,
+  env
+) {
+
   const sellerId =
     normalizeText(
       body.seller_id
@@ -3002,7 +3013,8 @@ export default {
           url,
           {
             json,
-            auditFull
+            auditFull,
+            auditFullInput
           }
         );
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
 import { parseAuditUpload, parseCsv, parseSingleAuditSource } from "../src/ingestion.js";
+import { parseLargeXlsx } from "../src/xlsx-streaming.js";
 
 describe("backend file ingestion", () => {
   it("parses quoted CSV and Brazilian delimiter without changing missing values", () => {
@@ -93,5 +94,21 @@ describe("backend file ingestion", () => {
     }));
     expect(parsed.file.size).toBeGreaterThan(10 * 1024 * 1024);
     expect(parsed.sources[0].rows[0]).toEqual(["ABC", "12.50"]);
+  });
+
+  it("streams XLSX XML with preamble and keeps only audit-relevant columns", async () => {
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+      ["Relatório de vendas"],
+      ["N.º de venda", "SKU", "Número de rastreamento", "Nome do comprador"],
+      ["ORDER-1", "SKU-1", "TRACK-1", "Pessoa sensível"],
+    ]), "Vendas");
+    const bytes = XLSX.write(workbook, { type: "array", bookType: "xlsx", compression: true });
+    const sources = await parseLargeXlsx(new File([bytes], "large.xlsx"), { marketplace: "Mercado Livre" });
+    expect(sources[0]).toMatchObject({
+      headers: ["N.º de venda", "SKU", "Número de rastreamento"],
+      rows: [["ORDER-1", "SKU-1", "TRACK-1"]],
+      context: { marketplace: "Mercado Livre" },
+    });
   });
 });
