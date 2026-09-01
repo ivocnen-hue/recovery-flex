@@ -19,6 +19,9 @@ export function NewAudit() {
     "DRAFT",
   );
   const [error, setError] = useState("");
+  const [periodPreset, setPeriodPreset] = useState("custom");
+  const [periodStart, setPeriodStart] = useState("");
+  const [periodEnd, setPeriodEnd] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const add = (list: FileList | null) =>
     setFiles((old) => [
@@ -36,13 +39,18 @@ export function NewAudit() {
     const form = new FormData(e.currentTarget);
     const payload: AuditInput = {
       seller: String(form.get("seller")),
-      marketplace: String(form.get("marketplace")),
+      channels: form.getAll("channels").map(String),
       operation: String(form.get("operation")),
       carrier: String(form.get("carrier")),
       periodStart: String(form.get("periodStart")),
       periodEnd: String(form.get("periodEnd")),
       files,
     };
+    if (!payload.channels?.length) {
+      setState("FAILED");
+      setError("Selecione ao menos uma origem: Mercado Livre, Shopee ou envios avulsos.");
+      return;
+    }
     setState("PROCESSING");
     setError("");
     try {
@@ -52,6 +60,18 @@ export function NewAudit() {
       setState("FAILED");
       setError(humanError(err));
     }
+  };
+  const applyPeriodPreset = (value: string) => {
+    setPeriodPreset(value);
+    if (value === "custom") return;
+    const today = new Date();
+    const end = today.toISOString().slice(0, 10);
+    let start = new Date(today);
+    if (value === "30d") start.setDate(start.getDate() - 29);
+    if (value === "month") start = new Date(today.getFullYear(), today.getMonth(), 1);
+    if (value === "year") start = new Date(today.getFullYear(), 0, 1);
+    setPeriodStart(start.toISOString().slice(0, 10));
+    setPeriodEnd(end);
   };
   return (
     <div className="page">
@@ -86,13 +106,6 @@ export function NewAudit() {
               </select>
             </label>
             <label>
-              <span>Marketplace</span>
-              <select name="marketplace" required>
-                <option value="">Selecione</option>
-                <option>Mercado Livre</option>
-              </select>
-            </label>
-            <label>
               <span>Operação logística</span>
               <select name="operation" required>
                 <option value="">Selecione</option>
@@ -100,17 +113,32 @@ export function NewAudit() {
                 <option>Transportadora</option>
               </select>
             </label>
+            <fieldset className="channel-picker">
+              <legend>Origens incluídas</legend>
+              <label><input type="checkbox" name="channels" value="Mercado Livre" /> Mercado Livre</label>
+              <label><input type="checkbox" name="channels" value="Shopee" /> Shopee</label>
+              <label><input type="checkbox" name="channels" value="Envios avulsos" /> Envios avulsos</label>
+            </fieldset>
             <label>
               <span>Transportadora</span>
               <input name="carrier" placeholder="Ex.: Flex SP" required />
             </label>
             <label>
+              <span>Atalho de período</span>
+              <select value={periodPreset} onChange={(e) => applyPeriodPreset(e.target.value)}>
+                <option value="custom">Escolher datas</option>
+                <option value="30d">Últimos 30 dias</option>
+                <option value="month">Este mês</option>
+                <option value="year">Este ano</option>
+              </select>
+            </label>
+            <label>
               <span>Início do período</span>
-              <input name="periodStart" type="date" required />
+              <input name="periodStart" type="date" value={periodStart} onChange={(e) => { setPeriodPreset("custom"); setPeriodStart(e.target.value); }} required />
             </label>
             <label>
               <span>Fim do período</span>
-              <input name="periodEnd" type="date" required />
+              <input name="periodEnd" type="date" value={periodEnd} onChange={(e) => { setPeriodPreset("custom"); setPeriodEnd(e.target.value); }} required />
             </label>
           </div>
         </section>

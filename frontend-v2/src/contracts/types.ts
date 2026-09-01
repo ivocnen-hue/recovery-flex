@@ -13,7 +13,8 @@ export type Finding = z.infer<typeof FindingSchema>;
 export type Evidence = z.infer<typeof EvidenceSchema>;
 export type AuditInput = {
   seller: string;
-  marketplace: string;
+  channels?: string[];
+  marketplace?: string;
   operation: string;
   carrier: string;
   periodStart: string;

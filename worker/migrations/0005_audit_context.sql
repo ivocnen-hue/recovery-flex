@@ -1,0 +1,3 @@
+ALTER TABLE audits ADD COLUMN operation TEXT;
+ALTER TABLE audits ADD COLUMN carrier TEXT;
+ALTER TABLE audits ADD COLUMN channels_json TEXT NOT NULL DEFAULT '[]';

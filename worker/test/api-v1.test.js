@@ -50,4 +50,20 @@ describe("canonical API v1 adapter", () => {
     expect(stored).toEqual(sources);
     expect(sourcesJsonByteLength(sources)).toBe(new TextEncoder().encode(serialized).byteLength);
   });
+
+  it("keeps Flex as the operation and channels as separate audit context", () => {
+    const result = canonicalizeAudit(payload, {
+      seller: "Casa Alva",
+      marketplace: "Mercado Livre, Shopee, Envios avulsos",
+      channels: ["Mercado Livre", "Shopee", "Envios avulsos"],
+      operation: "Flex",
+      carrier: "GT2",
+      sources: [{ rows: [1, 2, 3, 4] }],
+    }, "audit-context");
+    expect(result.listItem).toMatchObject({
+      operation: "Flex",
+      carrier: "GT2",
+      channels: ["Mercado Livre", "Shopee", "Envios avulsos"],
+    });
+  });
 });

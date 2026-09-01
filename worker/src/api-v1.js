@@ -89,6 +89,9 @@ export function canonicalizeAudit(payload, input = {}, forcedAuditId) {
   const status = pendingRows > 0 ? "REVIEW_REQUIRED" : "COMPLETED";
   const createdAt = new Date().toISOString();
   const marketplace = nullableText(input.marketplace) || nullableText(findings[0]?.marketplace) || "Não informado";
+  const channels = Array.isArray(input.channels) && input.channels.length
+    ? input.channels.map(String)
+    : marketplace.split(",").map(item => item.trim()).filter(Boolean);
   const period = input.period || [input.period_start, input.period_end].filter(Boolean).join(" — ") || "Não informado";
 
   return {
@@ -105,6 +108,9 @@ export function canonicalizeAudit(payload, input = {}, forcedAuditId) {
       audit_id: auditId,
       seller: nullableText(input.seller) || nullableText(input.seller_id) || "Não informado",
       marketplace,
+      operation: nullableText(input.operation || input.logistics_mode),
+      carrier: nullableText(input.carrier),
+      channels,
       period,
       status,
       source_rows: sourceRows,
@@ -121,8 +127,9 @@ async function persistCanonical(env, canonical) {
   await env.DB.prepare(
     `INSERT INTO audits
       (audit_id, seller, marketplace, period, status, source_rows, findings,
-       total_recoverable, summary_json, warnings_json, errors_json, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       total_recoverable, summary_json, warnings_json, errors_json, created_at,
+       operation, carrier, channels_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(audit_id) DO UPDATE SET
        seller = excluded.seller,
        marketplace = excluded.marketplace,
@@ -134,7 +141,10 @@ async function persistCanonical(env, canonical) {
        summary_json = excluded.summary_json,
        warnings_json = excluded.warnings_json,
        errors_json = excluded.errors_json,
-       created_at = excluded.created_at`,
+       created_at = excluded.created_at,
+       operation = excluded.operation,
+       carrier = excluded.carrier,
+       channels_json = excluded.channels_json`,
   ).bind(
     audit.audit_id,
     listItem.seller,
@@ -148,6 +158,9 @@ async function persistCanonical(env, canonical) {
     JSON.stringify(audit.warnings),
     JSON.stringify(audit.errors),
     listItem.created_at,
+    listItem.operation,
+    listItem.carrier,
+    JSON.stringify(listItem.channels),
   ).run();
 
   await env.DB.prepare("DELETE FROM evidence WHERE audit_id = ?").bind(audit.audit_id).run();
@@ -193,10 +206,14 @@ const parseJson = value => {
 async function listAudits(env, json) {
   const { results = [] } = await env.DB.prepare(
     `SELECT audit_id, seller, marketplace, period, status, source_rows,
-            findings, total_recoverable, created_at
+            findings, total_recoverable, created_at, operation, carrier, channels_json
        FROM audits ORDER BY created_at DESC LIMIT 100`,
   ).all();
-  return json({ ok: true, schema_version: SCHEMA_VERSION, items: results, next_cursor: null });
+  return json({ ok: true, schema_version: SCHEMA_VERSION, items: results.map(row => ({
+    ...row,
+    channels: parseJson(row.channels_json) || [row.marketplace],
+    channels_json: undefined,
+  })), next_cursor: null });
 }
 
 async function getAudit(env, json, auditId) {
@@ -212,6 +229,14 @@ async function getAudit(env, json, auditId) {
     summary: parseJson(row.summary_json),
     warnings: parseJson(row.warnings_json) || [],
     errors: parseJson(row.errors_json) || [],
+    context: {
+      seller: row.seller,
+      operation: nullableText(row.operation),
+      carrier: nullableText(row.carrier),
+      channels: parseJson(row.channels_json) || [row.marketplace],
+      period: row.period,
+      created_at: row.created_at,
+    },
   });
 }
 
@@ -349,13 +374,27 @@ async function createDraft(request, env, json) {
   const createdAt = new Date().toISOString();
   const seller = nullableText(input.seller) || "Não informado";
   const marketplace = nullableText(input.marketplace) || "Não informado";
+  const channels = Array.isArray(input.channels) && input.channels.length
+    ? input.channels.map(String)
+    : marketplace.split(",").map(item => item.trim()).filter(Boolean);
   const period = [input.period_start, input.period_end].filter(Boolean).join(" — ") || "Não informado";
   await env.DB.prepare(
     `INSERT INTO audits
       (audit_id, seller, marketplace, period, status, source_rows, findings,
-       total_recoverable, summary_json, warnings_json, errors_json, created_at)
-     VALUES (?, ?, ?, ?, 'UPLOADING', 0, 0, 0, ?, '[]', '[]', ?)`,
-  ).bind(auditId, seller, marketplace, period, JSON.stringify(emptySummary()), createdAt).run();
+       total_recoverable, summary_json, warnings_json, errors_json, created_at,
+       operation, carrier, channels_json)
+     VALUES (?, ?, ?, ?, 'UPLOADING', 0, 0, 0, ?, '[]', '[]', ?, ?, ?, ?)`,
+  ).bind(
+    auditId,
+    seller,
+    marketplace,
+    period,
+    JSON.stringify(emptySummary()),
+    createdAt,
+    nullableText(input.operation),
+    nullableText(input.carrier),
+    JSON.stringify(channels),
+  ).run();
   return json({ ok: true, schema_version: SCHEMA_VERSION, audit_id: auditId, status: "UPLOADING" }, 201);
 }
 
@@ -453,6 +492,9 @@ async function runStagedAudit(request, env, json, auditFull, auditFullInput, aud
     seller_id: audit.seller,
     seller: audit.seller,
     marketplace: audit.marketplace,
+    channels: parseJson(audit.channels_json) || [audit.marketplace],
+    operation: audit.operation,
+    carrier: audit.carrier,
     period_start: periodStart === "Não informado" ? "" : periodStart,
     period_end: periodEnd || "",
     sources,

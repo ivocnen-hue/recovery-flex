@@ -13,7 +13,7 @@ export function Audits() {
         .filter(
           (a) =>
             (status === "ALL" || a.status === status) &&
-            [a.audit_id, a.seller, a.marketplace]
+            [a.audit_id, a.seller, a.marketplace, a.operation, ...(a.channels ?? [])]
               .join(" ")
               .toLowerCase()
               .includes(search.toLowerCase()),
@@ -39,7 +39,7 @@ export function Audits() {
               aria-label="Buscar auditorias"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar seller, canal ou ID..."
+              placeholder="Buscar seller, operação, origem ou ID..."
             />
           </label>
           <select

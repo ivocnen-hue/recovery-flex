@@ -77,6 +77,16 @@ export const AuditResponseSchema = z
     summary: AuditSummarySchema,
     warnings: z.array(z.string()),
     errors: z.array(z.string()),
+    context: z
+      .object({
+        seller: z.string(),
+        operation: z.string().nullable(),
+        carrier: z.string().nullable(),
+        channels: z.array(z.string()),
+        period: z.string(),
+        created_at: z.string(),
+      })
+      .optional(),
   })
   .strict();
 export const AuditDraftSchema = z
@@ -103,6 +113,9 @@ export const AuditListItemSchema = z
     audit_id: z.string(),
     seller: z.string(),
     marketplace: z.string(),
+    operation: z.string().nullable().optional(),
+    carrier: z.string().nullable().optional(),
+    channels: z.array(z.string()).optional(),
     period: z.string(),
     status: AuditStatusSchema,
     source_rows: z.number().int().nonnegative(),

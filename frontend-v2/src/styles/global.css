@@ -29,6 +29,79 @@ input,
 select {
   font: inherit;
 }
+.channel-picker {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+.channel-picker legend {
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.channel-picker label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 14px 4px 0;
+  font-size: 12px;
+}
+.channel-picker input { accent-color: var(--accent); }
+.channel-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.channel-list span {
+  display: inline-flex;
+  padding: 4px 7px;
+  border: 1px solid #2d4c40;
+  border-radius: 999px;
+  background: #11231c;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+}
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 11px;
+  margin-bottom: 10px;
+}
+.back-link svg { width: 14px; }
+.dossier-heading { align-items: center; }
+.dossier-actions { display: flex; gap: 8px; }
+.dossier-context .status { margin-left: auto; }
+.context-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  margin: 0;
+  padding: 20px;
+}
+.context-grid .wide { grid-column: 1 / -1; }
+.context-grid dt { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+.context-grid dd { margin: 5px 0 0; font-weight: 700; font-size: 13px; }
+.clickable-row { cursor: pointer; }
+.clickable-row:hover { background: #121b24; }
+.dossier-warnings ul { margin: 0; padding: 18px 38px 22px; color: var(--warning); font-size: 12px; }
+.dossier-warnings li + li { margin-top: 8px; }
+.dossier-pagination > div { display: flex; align-items: center; gap: 10px; }
+.dossier-pagination .button { padding: 7px 10px; background: var(--surface2); }
+@media print {
+  .sidebar, .topbar, .dossier-actions, .back-link, .drawer, .drawer-scrim { display: none !important; }
+  .app-shell { display: block; }
+  .content { padding: 0; max-width: none; }
+  body, :root { background: white; color: #111; }
+  .panel, .metric { background: white; color: #111; border-color: #bbb; break-inside: avoid; }
+  .dossier-warnings ul { color: #333; }
+}
 button,
 a {
   color: inherit;

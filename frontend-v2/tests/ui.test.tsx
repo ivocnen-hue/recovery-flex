@@ -7,6 +7,8 @@ import { Dashboard } from "../src/pages/Dashboard/Dashboard";
 import { Audits } from "../src/pages/Audits/Audits";
 import { Findings } from "../src/pages/Findings/Findings";
 import { NewAudit } from "../src/pages/NewAudit/NewAudit";
+import { AuditTable } from "../src/components/audits/AuditTable";
+import { demoAudits } from "../src/mocks/demoData";
 const renderPage = (node: React.ReactNode) =>
   render(
     <QueryClientProvider
@@ -54,5 +56,22 @@ describe("Fase 1", () => {
     await user.click(screen.getByLabelText("Fechar"));
     await user.selectOptions(screen.getByLabelText("Status"), "PENDING");
     expect(screen.getByText("MEL245985019BR")).toBeInTheDocument();
+  });
+  it("abre a auditoria selecionada pela rota de detalhe", () => {
+    renderPage(<AuditTable items={[demoAudits[0]]} />);
+    expect(screen.getByLabelText("Abrir " + demoAudits[0].audit_id)).toHaveAttribute(
+      "href",
+      "/audits/" + demoAudits[0].audit_id,
+    );
+  });
+  it("permite escolher múltiplas origens e atalhos de data", async () => {
+    const user = userEvent.setup();
+    renderPage(<NewAudit />);
+    await user.click(screen.getByLabelText("Mercado Livre"));
+    await user.click(screen.getByLabelText("Shopee"));
+    await user.selectOptions(screen.getByDisplayValue("Escolher datas"), "30d");
+    expect(screen.getByLabelText("Mercado Livre")).toBeChecked();
+    expect(screen.getByLabelText("Shopee")).toBeChecked();
+    expect(screen.getByLabelText("Início do período")).not.toHaveValue("");
   });
 });

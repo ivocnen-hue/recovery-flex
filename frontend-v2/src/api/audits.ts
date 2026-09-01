@@ -11,12 +11,18 @@ export const auditsApi = {
   get: (id: string) =>
     request("/api/v1/audits/" + encodeURIComponent(id), AuditResponseSchema),
   run: async (input: AuditInput) => {
+    const channels = input.channels?.length
+      ? input.channels
+      : input.marketplace
+        ? [input.marketplace]
+        : [];
     const draft = await request("/api/v1/audits/drafts", AuditDraftSchema, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         seller: input.seller,
-        marketplace: input.marketplace,
+        marketplace: channels.join(", "),
+        channels,
         operation: input.operation,
         carrier: input.carrier,
         period_start: input.periodStart,
@@ -25,7 +31,7 @@ export const auditsApi = {
     });
     for (const file of input.files) {
       const form = new FormData();
-      form.set("marketplace", input.marketplace);
+      form.set("marketplace", channels.join(", "));
       form.set("operation", input.operation);
       form.set("carrier", input.carrier);
       form.set("file", file, file.name);

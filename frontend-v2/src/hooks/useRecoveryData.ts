@@ -18,6 +18,12 @@ export const useAuditSummary = () =>
     queryFn: async () => (DEMO_MODE ? demoAudit : auditsApi.get("latest")),
     retry: false,
   });
+export const useAudit = (id: string) =>
+  useQuery({
+    queryKey: queryKeys.audit(id),
+    queryFn: async () => auditsApi.get(id),
+    retry: false,
+  });
 export const useAudits = () =>
   useQuery({
     queryKey: queryKeys.audits(),
@@ -32,9 +38,9 @@ export const useAudits = () =>
         : auditsApi.list(),
     retry: false,
   });
-export const useFindings = () =>
+export const useFindings = (auditId = "latest") =>
   useQuery({
-    queryKey: queryKeys.findings("latest"),
+    queryKey: queryKeys.findings(auditId),
     queryFn: async () =>
       DEMO_MODE
         ? {
@@ -44,6 +50,6 @@ export const useFindings = () =>
             items: demoFindings,
             next_cursor: null,
           }
-        : findingsApi.list("latest"),
+        : findingsApi.list(auditId),
     retry: false,
   });
