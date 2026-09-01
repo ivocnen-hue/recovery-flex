@@ -1,3 +1,5 @@
+import { parseAuditUpload } from "./ingestion.js";
+
 const SCHEMA_VERSION = "1.0";
 
 const nullableText = value => {
@@ -186,7 +188,9 @@ async function listAudits(env, json) {
 }
 
 async function getAudit(env, json, auditId) {
-  const row = await env.DB.prepare("SELECT * FROM audits WHERE audit_id = ?").bind(auditId).first();
+  const row = auditId === "latest"
+    ? await env.DB.prepare("SELECT * FROM audits ORDER BY created_at DESC LIMIT 1").first()
+    : await env.DB.prepare("SELECT * FROM audits WHERE audit_id = ?").bind(auditId).first();
   if (!row) return apiError(json, 404, "AUDIT_NOT_FOUND", "Auditoria não encontrada.");
   return json({
     ok: true,
@@ -200,6 +204,11 @@ async function getAudit(env, json, auditId) {
 }
 
 async function getFindings(env, json, auditId) {
+  if (auditId === "latest") {
+    const latest = await env.DB.prepare("SELECT audit_id FROM audits ORDER BY created_at DESC LIMIT 1").first();
+    if (!latest) return apiError(json, 404, "AUDIT_NOT_FOUND", "Auditoria não encontrada.");
+    auditId = latest.audit_id;
+  }
   const { results = [] } = await env.DB.prepare(
     "SELECT payload_json FROM findings WHERE audit_id = ? ORDER BY rowid",
   ).bind(auditId).all();
@@ -213,6 +222,11 @@ async function getFindings(env, json, auditId) {
 }
 
 async function getEvidence(env, json, auditId) {
+  if (auditId === "latest") {
+    const latest = await env.DB.prepare("SELECT audit_id FROM audits ORDER BY created_at DESC LIMIT 1").first();
+    if (!latest) return apiError(json, 404, "AUDIT_NOT_FOUND", "Auditoria não encontrada.");
+    auditId = latest.audit_id;
+  }
   const { results = [] } = await env.DB.prepare(
     "SELECT payload_json FROM evidence WHERE audit_id = ? ORDER BY rowid",
   ).bind(auditId).all();
@@ -228,7 +242,15 @@ const apiError = (json, status, code, message) =>
   json({ ok: false, schema_version: SCHEMA_VERSION, error: { code, message } }, status);
 
 async function runAudit(request, env, json, auditFull, forcedAuditId) {
-  const input = await request.json();
+  const contentType = request.headers.get("content-type") || "";
+  let input;
+  try {
+    input = contentType.includes("multipart/form-data")
+      ? await parseAuditUpload(request)
+      : await request.json();
+  } catch (error) {
+    return apiError(json, 400, "INVALID_UPLOAD", error instanceof Error ? error.message : "Envio inválido.");
+  }
   const engineRequest = new Request(request.url, {
     method: "POST",
     headers: request.headers,
@@ -266,4 +288,3 @@ export async function handleV1Request(request, env, url, dependencies) {
   }
   return apiError(json, 405, "METHOD_NOT_ALLOWED", "Método não permitido.");
 }
-

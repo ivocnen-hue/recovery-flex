@@ -2995,6 +2995,7 @@ export default {
             "/api/v1/audits/:id/run",
             "/api/v1/audits/:id/findings",
             "/api/v1/audits/:id/evidence",
+            "POST /api/v1/audits (multipart CSV/XLS/XLSX)",
             "/api/map-file",
             "/api/parse-rules",
             "/api/audit",

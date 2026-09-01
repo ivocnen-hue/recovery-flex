@@ -3,6 +3,7 @@ import audit from "./fixtures/audit-valid.json";
 import { request } from "../src/api/client";
 import { AuditResponseSchema } from "../src/contracts/schemas";
 import { healthApi } from "../src/api/health";
+import { auditsApi } from "../src/api/audits";
 afterEach(() => vi.unstubAllGlobals());
 describe("API client", () => {
   it("consulta e valida o health check canônico", async () => {
@@ -81,5 +82,23 @@ describe("API client", () => {
       code: "SCHEMA_MISMATCH",
       message: "Resposta incompatível com a versão atual da API.",
     });
+  });
+  it("envia arquivos ao Worker sem fazer parsing local", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(audit), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await auditsApi.run({
+      seller: "Seller A",
+      marketplace: "Mercado Livre",
+      operation: "Flex",
+      carrier: "Flex SP",
+      periodStart: "2026-08-01",
+      periodEnd: "2026-08-31",
+      files: [new File(["a,b\n1,2"], "charges.csv", { type: "text/csv" })],
+    });
+    const options = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(options.body).toBeInstanceOf(FormData);
+    expect(options.credentials).toBe("omit");
   });
 });

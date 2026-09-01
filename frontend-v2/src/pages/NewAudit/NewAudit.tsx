@@ -1,5 +1,6 @@
 import { FileSpreadsheet, Play, UploadCloud, X } from "lucide-react";
 import { DragEvent, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { AuditInput } from "../../contracts/types";
 import { auditsApi } from "../../api/audits";
 import { humanError } from "../../lib/errors";
@@ -12,6 +13,7 @@ const stages = [
   "Gerando evidências...",
 ];
 export function NewAudit() {
+  const navigate = useNavigate();
   const [files, setFiles] = useState<File[]>([]);
   const [state, setState] = useState<"DRAFT" | "PROCESSING" | "FAILED">(
     "DRAFT",
@@ -45,6 +47,7 @@ export function NewAudit() {
     setError("");
     try {
       await auditsApi.run(payload);
+      navigate("/audits");
     } catch (err) {
       setState("FAILED");
       setError(humanError(err));

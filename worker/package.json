@@ -9,6 +9,9 @@
     "types": "wrangler types",
     "deploy:staging": "wrangler deploy --keep-vars"
   },
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  },
   "devDependencies": {
     "vitest": "^3.2.4",
     "wrangler": "^4.127.1"

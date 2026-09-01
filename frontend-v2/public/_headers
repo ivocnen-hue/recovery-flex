@@ -1,0 +1,6 @@
+/*
+  Content-Security-Policy: default-src 'self'; connect-src 'self' https://recovery-audit-test.ivocnen.workers.dev; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; style-src 'self' https://fonts.googleapis.com; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
