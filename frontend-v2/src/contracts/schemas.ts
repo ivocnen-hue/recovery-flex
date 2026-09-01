@@ -79,6 +79,25 @@ export const AuditResponseSchema = z
     errors: z.array(z.string()),
   })
   .strict();
+export const AuditDraftSchema = z
+  .object({
+    ok: z.literal(true),
+    schema_version: SchemaVersion,
+    audit_id: z.string(),
+    status: z.literal("UPLOADING"),
+  })
+  .strict();
+export const AuditSourceSchema = z
+  .object({
+    ok: z.literal(true),
+    schema_version: SchemaVersion,
+    audit_id: z.string(),
+    source_id: z.string(),
+    filename: z.string(),
+    source_rows: z.number().int().nonnegative(),
+    sheets: z.number().int().positive(),
+  })
+  .strict();
 export const AuditListItemSchema = z
   .object({
     audit_id: z.string(),

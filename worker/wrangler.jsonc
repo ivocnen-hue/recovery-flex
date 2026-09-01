@@ -16,5 +16,11 @@
       "database_id": "91a58605-88c1-42d4-aa27-6c4e188e867c",
       "migrations_dir": "migrations"
     }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "SOURCES",
+      "bucket_name": "recovery-audit-sources-staging"
+    }
   ]
 }

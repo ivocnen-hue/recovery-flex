@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
-import { parseAuditUpload, parseCsv } from "../src/ingestion.js";
+import { parseAuditUpload, parseCsv, parseSingleAuditSource } from "../src/ingestion.js";
 
 describe("backend file ingestion", () => {
   it("parses quoted CSV and Brazilian delimiter without changing missing values", () => {
@@ -54,5 +54,32 @@ describe("backend file ingestion", () => {
       method: "POST",
       body: form,
     }))).rejects.toThrow("Formato não aceito");
+  });
+
+  it("accepts exactly one staged file and preserves backend provenance", async () => {
+    const form = new FormData();
+    form.set("marketplace", "Mercado Livre");
+    form.set("operation", "Flex");
+    form.append("file", new File(["tracking,charged_amount\nABC,"], "charges.csv"));
+    const parsed = await parseSingleAuditSource(new Request("https://example.test/api/v1/audits/a/sources", {
+      method: "POST",
+      body: form,
+    }));
+    expect(parsed.file.name).toBe("charges.csv");
+    expect(parsed.sources[0]).toMatchObject({
+      filename: "charges.csv",
+      context: { marketplace: "Mercado Livre", logistics_mode: "Flex" },
+      rows: [["ABC", ""]],
+    });
+  });
+
+  it("rejects batches on the staged source endpoint", async () => {
+    const form = new FormData();
+    form.append("file", new File(["a"], "a.csv"));
+    form.append("file", new File(["b"], "b.csv"));
+    await expect(parseSingleAuditSource(new Request("https://example.test/api/v1/audits/a/sources", {
+      method: "POST",
+      body: form,
+    }))).rejects.toThrow("exatamente um arquivo");
   });
 });

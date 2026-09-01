@@ -71,7 +71,7 @@ export function parseCsv(text) {
   return cleanMatrix(matrix);
 }
 
-const spreadsheetSources = async (file, context) => {
+export const spreadsheetSources = async (file, context) => {
   const workbook = XLSX.read(await file.arrayBuffer(), {
     type: "array",
     cellDates: false,
@@ -95,7 +95,7 @@ const spreadsheetSources = async (file, context) => {
   return sources;
 };
 
-const csvSources = async (file, context) => {
+export const csvSources = async (file, context) => {
   const parsed = parseCsv(await file.text());
   return parsed ? [{ filename: file.name, sheet: null, context, ...parsed }] : [];
 };
@@ -147,4 +147,32 @@ export async function parseAuditUpload(request) {
     rule_sets: [],
     product_catalog: [],
   };
+}
+
+export async function parseSingleAuditSource(request) {
+  const contentLength = Number(request.headers.get("content-length") || 0);
+  if (contentLength > UPLOAD_LIMITS.maxFileBytes + 1024 * 1024) {
+    throw new Error("O arquivo excede o limite de 10 MB.");
+  }
+  const form = await request.formData();
+  const files = form.getAll("file").filter(value => typeof value?.arrayBuffer === "function");
+  if (files.length !== 1) throw new Error("Envie exatamente um arquivo por vez.");
+  const file = files[0];
+  if (Number(file.size || 0) > UPLOAD_LIMITS.maxFileBytes) {
+    throw new Error(`O arquivo ${file.name} excede o limite de 10 MB.`);
+  }
+  const extension = extensionOf(file.name);
+  if (!["csv", "xls", "xlsx"].includes(extension)) {
+    throw new Error(`Formato não aceito: ${file.name}. Use CSV, XLS ou XLSX.`);
+  }
+  const context = {
+    marketplace: String(form.get("marketplace") || ""),
+    logistics_mode: String(form.get("operation") || ""),
+    carrier: String(form.get("carrier") || ""),
+  };
+  const sources = extension === "csv"
+    ? await csvSources(file, context)
+    : await spreadsheetSources(file, context);
+  if (!sources.length) throw new Error("Nenhuma aba ou linha utilizável foi encontrada.");
+  return { file, sources };
 }

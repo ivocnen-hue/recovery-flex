@@ -91,10 +91,22 @@ describe("API client", () => {
       message: "Resposta incompatível com a versão atual da API.",
     });
   });
-  it("envia arquivos ao Worker sem fazer parsing local", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(audit), { status: 200 }),
-    );
+  it("envia um arquivo por vez ao Worker sem fazer parsing local", async () => {
+    const draft = { ok: true, schema_version: "1.0", audit_id: "audit-staged", status: "UPLOADING" };
+    const source = (name: string, id: string) => ({
+      ok: true,
+      schema_version: "1.0",
+      audit_id: "audit-staged",
+      source_id: id,
+      filename: name,
+      source_rows: 1,
+      sheets: 1,
+    });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(draft), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(source("charges.csv", "s1")), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(source("orders.csv", "s2")), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(audit), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     await auditsApi.run({
       seller: "Seller A",
@@ -103,10 +115,23 @@ describe("API client", () => {
       carrier: "Flex SP",
       periodStart: "2026-08-01",
       periodEnd: "2026-08-31",
-      files: [new File(["a,b\n1,2"], "charges.csv", { type: "text/csv" })],
+      files: [
+        new File(["a,b\n1,2"], "charges.csv", { type: "text/csv" }),
+        new File(["a,b\n3,4"], "orders.csv", { type: "text/csv" }),
+      ],
     });
-    const options = fetchMock.mock.calls[0][1] as RequestInit;
-    expect(options.body).toBeInstanceOf(FormData);
-    expect(options.credentials).toBe("omit");
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls.map(call => call[0])).toEqual([
+      expect.stringContaining("/api/v1/audits/drafts"),
+      expect.stringContaining("/api/v1/audits/audit-staged/sources"),
+      expect.stringContaining("/api/v1/audits/audit-staged/sources"),
+      expect.stringContaining("/api/v1/audits/audit-staged/run"),
+    ]);
+    for (const index of [1, 2]) {
+      const options = fetchMock.mock.calls[index][1] as RequestInit;
+      expect(options.body).toBeInstanceOf(FormData);
+      expect((options.body as FormData).getAll("file")).toHaveLength(1);
+      expect(options.credentials).toBe("omit");
+    }
   });
 });

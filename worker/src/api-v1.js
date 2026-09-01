@@ -1,4 +1,4 @@
-import { parseAuditUpload } from "./ingestion.js";
+import { parseAuditUpload, parseSingleAuditSource } from "./ingestion.js";
 
 const SCHEMA_VERSION = "1.0";
 
@@ -251,9 +251,13 @@ async function runAudit(request, env, json, auditFull, forcedAuditId) {
   } catch (error) {
     return apiError(json, 400, "INVALID_UPLOAD", error instanceof Error ? error.message : "Envio inválido.");
   }
-  const engineRequest = new Request(request.url, {
+  return executeAudit(request.url, env, json, auditFull, input, forcedAuditId);
+}
+
+async function executeAudit(url, env, json, auditFull, input, forcedAuditId) {
+  const engineRequest = new Request(url, {
     method: "POST",
-    headers: request.headers,
+    headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
   });
   const engineResponse = await auditFull(engineRequest, env);
@@ -262,6 +266,123 @@ async function runAudit(request, env, json, auditFull, forcedAuditId) {
   const canonical = canonicalizeAudit(payload, input, forcedAuditId);
   await persistCanonical(env, canonical);
   return json(canonical.audit);
+}
+
+const emptySummary = () => ({
+  source_rows: 0,
+  normalized_rows: 0,
+  matched_rows: 0,
+  pending_rows: 0,
+  overcharged_rows: 0,
+  ok_rows: 0,
+  missing_charged_amount_rows: 0,
+  total_recoverable: 0,
+});
+
+async function createDraft(request, env, json) {
+  let input;
+  try {
+    input = await request.json();
+  } catch {
+    return apiError(json, 400, "INVALID_DRAFT", "Contexto da auditoria inválido.");
+  }
+  const auditId = crypto.randomUUID();
+  const createdAt = new Date().toISOString();
+  const seller = nullableText(input.seller) || "Não informado";
+  const marketplace = nullableText(input.marketplace) || "Não informado";
+  const period = [input.period_start, input.period_end].filter(Boolean).join(" — ") || "Não informado";
+  await env.DB.prepare(
+    `INSERT INTO audits
+      (audit_id, seller, marketplace, period, status, source_rows, findings,
+       total_recoverable, summary_json, warnings_json, errors_json, created_at)
+     VALUES (?, ?, ?, ?, 'UPLOADING', 0, 0, 0, ?, '[]', '[]', ?)`,
+  ).bind(auditId, seller, marketplace, period, JSON.stringify(emptySummary()), createdAt).run();
+  return json({ ok: true, schema_version: SCHEMA_VERSION, audit_id: auditId, status: "UPLOADING" }, 201);
+}
+
+async function uploadSource(request, env, json, auditId) {
+  if (!env.SOURCES) return apiError(json, 503, "SOURCE_STORAGE_UNAVAILABLE", "Armazenamento de arquivos indisponível.");
+  const audit = await env.DB.prepare("SELECT audit_id FROM audits WHERE audit_id = ?").bind(auditId).first();
+  if (!audit) return apiError(json, 404, "AUDIT_NOT_FOUND", "Auditoria não encontrada.");
+  let parsed;
+  try {
+    parsed = await parseSingleAuditSource(request);
+  } catch (error) {
+    return apiError(json, 400, "INVALID_UPLOAD", error instanceof Error ? error.message : "Envio inválido.");
+  }
+  const sourceId = crypto.randomUUID();
+  const safeName = parsed.file.name.replace(/[^a-zA-Z0-9._-]+/g, "_");
+  const rawKey = `audits/${auditId}/raw/${sourceId}-${safeName}`;
+  const parsedKey = `audits/${auditId}/parsed/${sourceId}.json`;
+  const rowCount = parsed.sources.reduce((total, source) => total + source.rows.length, 0);
+  await env.SOURCES.put(rawKey, parsed.file.stream(), {
+    httpMetadata: { contentType: parsed.file.type || "application/octet-stream" },
+    customMetadata: { audit_id: auditId, source_id: sourceId, filename: encodeURIComponent(parsed.file.name) },
+  });
+  await env.SOURCES.put(parsedKey, JSON.stringify(parsed.sources), {
+    httpMetadata: { contentType: "application/json" },
+    customMetadata: { audit_id: auditId, source_id: sourceId },
+  });
+  await env.DB.prepare(
+    `INSERT INTO audit_sources
+      (source_id, audit_id, filename, raw_r2_key, parsed_r2_key, source_rows, sheets, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(
+    sourceId,
+    auditId,
+    parsed.file.name,
+    rawKey,
+    parsedKey,
+    rowCount,
+    parsed.sources.length,
+    new Date().toISOString(),
+  ).run();
+  return json({
+    ok: true,
+    schema_version: SCHEMA_VERSION,
+    audit_id: auditId,
+    source_id: sourceId,
+    filename: parsed.file.name,
+    source_rows: rowCount,
+    sheets: parsed.sources.length,
+  }, 201);
+}
+
+async function runStagedAudit(request, env, json, auditFull, auditId) {
+  if (!env.SOURCES) return apiError(json, 503, "SOURCE_STORAGE_UNAVAILABLE", "Armazenamento de arquivos indisponível.");
+  const audit = await env.DB.prepare("SELECT * FROM audits WHERE audit_id = ?").bind(auditId).first();
+  if (!audit) return apiError(json, 404, "AUDIT_NOT_FOUND", "Auditoria não encontrada.");
+  const { results = [] } = await env.DB.prepare(
+    "SELECT parsed_r2_key FROM audit_sources WHERE audit_id = ? ORDER BY created_at, source_id",
+  ).bind(auditId).all();
+  if (!results.length) return apiError(json, 400, "NO_SOURCES", "Envie ao menos um arquivo antes de executar a auditoria.");
+  await env.DB.prepare("UPDATE audits SET status = 'PROCESSING' WHERE audit_id = ?").bind(auditId).run();
+  const sources = [];
+  try {
+    for (const row of results) {
+      const object = await env.SOURCES.get(row.parsed_r2_key);
+      if (!object) throw new Error("Fonte armazenada não encontrada.");
+      const stored = JSON.parse(await object.text());
+      if (!Array.isArray(stored)) throw new Error("Fonte armazenada inválida.");
+      sources.push(...stored);
+    }
+  } catch (error) {
+    await env.DB.prepare("UPDATE audits SET status = 'FAILED', errors_json = ? WHERE audit_id = ?")
+      .bind(JSON.stringify([error instanceof Error ? error.message : "Falha ao recuperar fontes."]), auditId).run();
+    return apiError(json, 500, "SOURCE_READ_FAILED", "Não foi possível recuperar os arquivos enviados.");
+  }
+  const [periodStart, periodEnd] = String(audit.period).split(" — ");
+  return executeAudit(request.url, env, json, auditFull, {
+    seller_id: audit.seller,
+    seller: audit.seller,
+    marketplace: audit.marketplace,
+    period_start: periodStart === "Não informado" ? "" : periodStart,
+    period_end: periodEnd || "",
+    sources,
+    rule_sources: [],
+    rule_sets: [],
+    product_catalog: [],
+  }, auditId);
 }
 
 export async function handleV1Request(request, env, url, dependencies) {
@@ -276,15 +397,20 @@ export async function handleV1Request(request, env, url, dependencies) {
     if (request.method === "POST") return runAudit(request, env, json, auditFull);
   }
 
-  const match = url.pathname.match(/^\/api\/v1\/audits\/([^/]+)(?:\/(findings|evidence|run))?$/);
+  if (url.pathname === "/api/v1/audits/drafts" && request.method === "POST") {
+    return createDraft(request, env, json);
+  }
+
+  const match = url.pathname.match(/^\/api\/v1\/audits\/([^/]+)(?:\/(findings|evidence|sources|run))?$/);
   if (!match) return apiError(json, 404, "ENDPOINT_NOT_FOUND", "Endpoint não encontrado.");
   const auditId = decodeURIComponent(match[1]);
   const resource = match[2];
   if (request.method === "GET" && !resource) return getAudit(env, json, auditId);
   if (request.method === "GET" && resource === "findings") return getFindings(env, json, auditId);
   if (request.method === "GET" && resource === "evidence") return getEvidence(env, json, auditId);
+  if (request.method === "POST" && resource === "sources") return uploadSource(request, env, json, auditId);
   if (request.method === "POST" && resource === "run") {
-    return runAudit(request, env, json, auditFull, auditId);
+    return runStagedAudit(request, env, json, auditFull, auditId);
   }
   return apiError(json, 405, "METHOD_NOT_ALLOWED", "Método não permitido.");
 }
