@@ -54,6 +54,18 @@ export const FindingSchema = z
     shipment_id: z.string().nullable(),
     pack_id: z.string().nullable(),
     sku: z.string().nullable(),
+    items: z
+      .array(
+        z.object({
+          sku: z.string().nullable(),
+          product_name: z.string().nullable(),
+          quantity: z.number().nullable(),
+          source_file: z.string().nullable(),
+          source_sheet: z.string().nullable(),
+          source_row: z.number().int().nullable(),
+        }).strict(),
+      )
+      .default([]),
     quantity: z.number().nullable(),
     charged_amount: z.number().nullable(),
     expected_amount: z.number().nullable(),

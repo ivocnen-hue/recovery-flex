@@ -44,8 +44,8 @@ export function canonicalizeAudit(payload, input = {}, forcedAuditId) {
       original_value: null,
       normalized_value: null,
       canonical_field: null,
-      match_method: sourceFiles.length > 1 ? "identifier" : null,
-      confidence: null,
+      match_method: nullableText(result?.evidence?.reconciliation?.method) || (sourceFiles.length > 1 ? "identifier" : null),
+      confidence: nullableNumber(result?.evidence?.reconciliation?.confidence),
       rule: nullableText(result?.evidence?.source_reference),
       conflicts: [],
     }));
@@ -58,6 +58,14 @@ export function canonicalizeAudit(payload, input = {}, forcedAuditId) {
       shipment_id: nullableText(result.shipment_id),
       pack_id: nullableText(result.pack_id),
       sku: nullableText(result.sku),
+      items: (Array.isArray(result.items) ? result.items : []).map(item => ({
+        sku: nullableText(item?.sku),
+        product_name: nullableText(item?.product_name),
+        quantity: nullableNumber(item?.quantity),
+        source_file: nullableText(item?.source_file),
+        source_sheet: nullableText(item?.source_sheet),
+        source_row: Number.isInteger(item?.source_row) ? item.source_row : null,
+      })),
       quantity: nullableNumber(result.quantity),
       charged_amount: nullableNumber(result.charged_amount),
       expected_amount: nullableNumber(result.expected_amount),
@@ -67,8 +75,8 @@ export function canonicalizeAudit(payload, input = {}, forcedAuditId) {
       rule_version: nullableText(result.matched_rule_set?.version || result.matched_rule_set),
       marketplace: nullableText(result.marketplace),
       carrier: nullableText(result.carrier),
-      match_method: sourceFiles.length > 1 ? "identifier" : null,
-      confidence: null,
+      match_method: nullableText(result?.evidence?.reconciliation?.method) || (sourceFiles.length > 1 ? "identifier" : null),
+      confidence: nullableNumber(result?.evidence?.reconciliation?.confidence),
       technical_data: {
         dimensions_raw: nullableText(result?.technical_data?.dimensions_raw),
         height_cm: nullableNumber(result?.technical_data?.height_cm),
@@ -289,6 +297,10 @@ const excelText = value => value === null || value === undefined ? "" : String(v
 export function buildAuditWorkbook(audit, findings) {
   const workbook = XLSX.utils.book_new();
   workbook.Workbook = { CalcPr: { fullCalcOnLoad: true, forceFullCalc: true, calcMode: "auto" } };
+  const skuDisplay = item => {
+    const skus = (Array.isArray(item.items) ? item.items : []).map(entry => entry?.sku).filter(Boolean);
+    return [...new Set([item.sku, ...skus].filter(Boolean))].join(" | ");
+  };
   const detailRows = findings.map(item => [
     item.finding_id,
     item.status,
@@ -296,7 +308,7 @@ export function buildAuditWorkbook(audit, findings) {
     excelText(item.tracking_number),
     excelText(item.order_id),
     excelText(item.shipment_id),
-    excelText(item.sku),
+    excelText(skuDisplay(item)),
     item.quantity,
     item.charged_amount,
     item.expected_amount,
@@ -339,7 +351,7 @@ export function buildAuditWorkbook(audit, findings) {
 
   const groups = new Map();
   for (const item of findings) {
-    const key = item.sku || "SEM SKU IDENTIFICADO";
+    const key = skuDisplay(item) || "SEM SKU IDENTIFICADO";
     const group = groups.get(key) || { sku: key, findings: 0, recoverable: 0, units: 0, missingTracking: 0 };
     group.findings += 1;
     group.recoverable += Number(item.recoverable_amount || 0);
@@ -376,9 +388,10 @@ export function buildAuditWorkbook(audit, findings) {
     const maximum = [technical.height_cm, technical.width_cm, technical.length_cm]
       .filter(value => value != null)
       .reduce((max, value) => Math.max(max, Number(value)), 0) || null;
-    const key = [item.sku || "SEM SKU", item.quantity ?? "", technical.dimensions_raw || "", technical.weight_g ?? ""].join("|");
+    const displayedSku = skuDisplay(item);
+    const key = [displayedSku || "SEM SKU", item.quantity ?? "", technical.dimensions_raw || "", technical.weight_g ?? ""].join("|");
     const group = dimensionGroups.get(key) || {
-      sku: item.sku || "SEM SKU IDENTIFICADO",
+      sku: displayedSku || "SEM SKU IDENTIFICADO",
       quantity: item.quantity,
       dimensions: technical.dimensions_raw,
       weight: technical.weight_g,
@@ -411,7 +424,7 @@ export function buildAuditWorkbook(audit, findings) {
 
   const evidenceRows = [];
   for (const item of findings) for (const evidence of item.evidence || []) evidenceRows.push([
-    item.finding_id, item.sku, item.tracking_number, evidence.source_file, evidence.sheet,
+    item.finding_id, skuDisplay(item), item.tracking_number, evidence.source_file, evidence.sheet,
     evidence.row, evidence.original_column, excelText(evidence.original_value),
     evidence.canonical_field, excelText(evidence.normalized_value), evidence.match_method,
     evidence.confidence, evidence.rule, (evidence.conflicts || []).join(" | "),
@@ -427,7 +440,7 @@ export function buildAuditWorkbook(audit, findings) {
     if (item.status !== "OVERCHARGED" || item.charged_amount == null || item.expected_amount == null) return total;
     return total + Math.max(0, Number(item.charged_amount) - Number(item.expected_amount));
   }, 0);
-  const missingSku = findings.filter(item => !item.sku).length;
+  const missingSku = findings.filter(item => !skuDisplay(item)).length;
   const missingTracking = findings.filter(item => !item.tracking_number).length;
   const calculationDivergences = findings.filter(item => {
     const difference = item.charged_amount == null || item.expected_amount == null ? null : Number(item.charged_amount) - Number(item.expected_amount);

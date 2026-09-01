@@ -552,6 +552,10 @@ width_cm
 length_cm
 weight_g
 dimensions
+account_id
+postal_code
+event_date
+product_name
 
 Também identifique:
 
@@ -699,6 +703,34 @@ Retorne SOMENTE JSON válido:
       "index": -1,
       "confidence": 0,
       "reason": ""
+    },
+
+    "account_id": {
+      "column": null,
+      "index": -1,
+      "confidence": 0,
+      "reason": ""
+    },
+
+    "postal_code": {
+      "column": null,
+      "index": -1,
+      "confidence": 0,
+      "reason": ""
+    },
+
+    "event_date": {
+      "column": null,
+      "index": -1,
+      "confidence": 0,
+      "reason": ""
+    },
+
+    "product_name": {
+      "column": null,
+      "index": -1,
+      "confidence": 0,
+      "reason": ""
     }
   },
 
@@ -775,7 +807,11 @@ Retorne SOMENTE JSON válido:
       "width_cm",
       "length_cm",
       "weight_g",
-      "dimensions"
+      "dimensions",
+      "account_id",
+      "postal_code",
+      "event_date",
+      "product_name"
     ]
   ) {
     const item =
@@ -854,6 +890,7 @@ Retorne SOMENTE JSON válido:
 export function sourceMappingKey(rawSource, sellerId) {
   const source = normalizeSource(rawSource);
   return JSON.stringify({
+    mapping_contract_version: 2,
     seller_id: normalizeText(sellerId),
     headers: source.headers.map(comparableText),
     context: {
@@ -1170,6 +1207,46 @@ function fieldFromMapping(
   return rawRow[index];
 }
 
+const HEADER_ALIASES = {
+  tracking_number: ["tracking", "rastreio", "rastreamento", "codigo de rastreio", "codigo rastreio", "etiqueta"],
+  order_id: ["pedido", "numero do pedido", "id pedido", "order id", "order_id"],
+  shipment_id: ["envio", "id envio", "shipment", "shipment id", "shipment_id"],
+  pack_id: ["pack", "pack id", "pack_id"],
+  sku: ["sku", "codigo sku", "referencia", "seller sku"],
+  quantity: ["quantidade", "qtd", "quantity", "unidades"],
+  charged_amount: ["valor cobrado", "cobranca", "cobrado", "frete cobrado", "charged amount"],
+  sale_amount: ["valor venda", "preco venda", "sale amount"],
+  dimensions: ["dimensoes", "dimensao", "medidas", "dimensions"],
+  height_cm: ["altura", "altura cm", "height"],
+  width_cm: ["largura", "largura cm", "width"],
+  length_cm: ["comprimento", "comprimento cm", "length"],
+  weight_g: ["peso", "peso g", "peso gramas", "weight"],
+  account_id: ["conta", "conta seller", "seller", "seller id", "loja"],
+  postal_code: ["cep", "codigo postal", "postal code", "zip code"],
+  event_date: ["data", "data envio", "data entrega", "date"],
+  product_name: ["produto", "titulo produto", "descricao produto", "item", "product"]
+};
+
+function mappingWithHeaderFallback(mapping, headers) {
+  const out = { ...(mapping || {}) };
+  const comparableHeaders = headers.map(comparableText);
+
+  for (const [field, aliases] of Object.entries(HEADER_ALIASES)) {
+    if (Number.isInteger(Number(out[field]?.index)) && Number(out[field].index) >= 0) continue;
+    const index = comparableHeaders.findIndex(header => aliases.some(alias => header === comparableText(alias)));
+    if (index >= 0) {
+      out[field] = {
+        column: headers[index],
+        index,
+        confidence: 0.9,
+        reason: "Associação determinística por cabeçalho conhecido."
+      };
+    }
+  }
+
+  return out;
+}
+
 // ============================================================
 // CANONICAL ROW
 // ============================================================
@@ -1180,8 +1257,10 @@ function canonicalRowFromSource(
   sellerId
 ) {
   const mapping =
-    mappedSource.mapper.mapping ||
-    {};
+    mappingWithHeaderFallback(
+      mappedSource.mapper.mapping || {},
+      mappedSource.source.headers || []
+    );
 
   const source =
     mappedSource.source;
@@ -1259,6 +1338,18 @@ function canonicalRowFromSource(
           "sku"
         )
       ),
+
+    account_id:
+      normalizeText(fieldFromMapping(rawRow, mapping, "account_id")),
+
+    postal_code:
+      normalizeText(fieldFromMapping(rawRow, mapping, "postal_code")),
+
+    event_date:
+      normalizeText(fieldFromMapping(rawRow, mapping, "event_date")),
+
+    product_name:
+      normalizeText(fieldFromMapping(rawRow, mapping, "product_name")),
 
     quantity:
       safeNumber(
@@ -1492,100 +1583,171 @@ function mergeRows(
   return out;
 }
 
-function reconcileSources(
-  canonicalRows
-) {
-  const index =
-    new Map();
+function normalizedComparable(value) {
+  return comparableText(value).replace(/[^a-z0-9]/g, "");
+}
 
-  for (
-    const row
-    of canonicalRows
-  ) {
-    for (
-      const key
-      of identifierKeys(row)
-    ) {
-      if (!index.has(key)) {
-        index.set(
-          key,
-          []
-        );
+function sortedDimensions(row) {
+  const dimensions = [row.height_cm, row.width_cm, row.length_cm].map(safeNumber);
+  return dimensions.every(value => value !== null) ? dimensions.sort((a, b) => a - b) : null;
+}
+
+function dimensionsMatch(first, second) {
+  const a = sortedDimensions(first);
+  const b = sortedDimensions(second);
+  if (!a || !b) return false;
+  return a.every((value, index) => Math.abs(value - b[index]) <= Math.max(2, value * 0.05));
+}
+
+function weightMatches(first, second) {
+  const a = safeNumber(first.weight_g);
+  const b = safeNumber(second.weight_g);
+  return a !== null && b !== null && Math.abs(a - b) <= Math.max(100, a * 0.1);
+}
+
+function dateDistanceDays(first, second) {
+  const a = Date.parse(first || "");
+  const b = Date.parse(second || "");
+  return Number.isFinite(a) && Number.isFinite(b) ? Math.abs(a - b) / 86400000 : null;
+}
+
+function scoreCandidate(charge, candidate) {
+  let score = 0;
+  const signals = [];
+  const identifiers = [
+    ["tracking_number", 100], ["order_id", 95], ["shipment_id", 90], ["pack_id", 85]
+  ];
+  for (const [field, points] of identifiers) {
+    const left = normalizedComparable(charge[field]);
+    const right = normalizedComparable(candidate[field]);
+    if (left && right && left === right) {
+      score += points;
+      signals.push(field);
+    }
+  }
+  if (normalizedComparable(charge.account_id) && normalizedComparable(charge.account_id) === normalizedComparable(candidate.account_id)) {
+    score += 15;
+    signals.push("account_id");
+  }
+  if (normalizedComparable(charge.postal_code) && normalizedComparable(charge.postal_code) === normalizedComparable(candidate.postal_code)) {
+    score += 15;
+    signals.push("postal_code");
+  }
+  const dateDistance = dateDistanceDays(charge.event_date, candidate.event_date);
+  if (dateDistance !== null && dateDistance <= 2) {
+    score += dateDistance === 0 ? 12 : 8;
+    signals.push("event_date");
+  }
+  if (dimensionsMatch(charge, candidate)) {
+    score += 30;
+    signals.push("dimensions");
+  }
+  if (weightMatches(charge, candidate)) {
+    score += 20;
+    signals.push("weight_g");
+  }
+  const chargeQuantity = safeNumber(charge.quantity);
+  const candidateQuantity = safeNumber(candidate.quantity);
+  if (chargeQuantity !== null && candidateQuantity !== null && chargeQuantity === candidateQuantity) {
+    score += 10;
+    signals.push("quantity");
+  }
+  return { score, signals };
+}
+
+function candidateIdentity(row) {
+  return [row.source_file, row.source_sheet, row.source_row, row.sku, row.product_name].map(value => value ?? "").join("|");
+}
+
+export function reconcileSources(canonicalRows) {
+  const identifierIndex = new Map();
+  const dimensionIndex = new Map();
+  const enrichmentRows = canonicalRows.filter(row => row.charged_amount === null);
+  for (const row of enrichmentRows) {
+    for (const key of identifierKeys(row)) {
+      if (!identifierIndex.has(key)) identifierIndex.set(key, []);
+      identifierIndex.get(key).push(row);
+    }
+    const dimensions = sortedDimensions(row);
+    if (row.sku && dimensions) {
+      const quantity = safeNumber(row.quantity);
+      for (const quantityKey of new Set([String(quantity ?? "*"), "*"])) {
+        const dimensionKey = `${quantityKey}|${dimensions.map(value => Math.round(value / 5)).join("|")}`;
+        if (!dimensionIndex.has(dimensionKey)) dimensionIndex.set(dimensionKey, []);
+        dimensionIndex.get(dimensionKey).push(row);
       }
-
-      index
-        .get(key)
-        .push(row);
     }
   }
 
-  const chargeRows =
-    canonicalRows.filter(
-      row =>
-        row.charged_amount !==
-        null
-    );
+  const chargeRows = canonicalRows.filter(row => row.charged_amount !== null);
+  const reconciled = chargeRows.map(charge => {
+    const exactCandidates = new Map();
+    for (const key of identifierKeys(charge)) {
+      for (const candidate of identifierIndex.get(key) || []) exactCandidates.set(candidateIdentity(candidate), candidate);
+    }
 
-  const reconciled = [];
+    let candidates = [...exactCandidates.values()];
+    let method = candidates.length ? "exact_identifier" : null;
+    if (!candidates.length) {
+      const dimensions = sortedDimensions(charge);
+      const quantity = safeNumber(charge.quantity);
+      const dimensionalCandidates = new Map();
+      if (dimensions) {
+        const buckets = dimensions.map(value => Math.round(value / 5));
+        for (const first of [-1, 0, 1]) for (const second of [-1, 0, 1]) for (const third of [-1, 0, 1]) {
+          const key = `${quantity ?? "*"}|${buckets[0] + first}|${buckets[1] + second}|${buckets[2] + third}`;
+          for (const candidate of dimensionIndex.get(key) || []) dimensionalCandidates.set(candidateIdentity(candidate), candidate);
+        }
+      }
+      candidates = [...dimensionalCandidates.values()].filter(candidate => dimensionsMatch(charge, candidate));
+      method = candidates.length ? "composite_dimensions" : null;
+    }
 
-  for (
-    const charge
-    of chargeRows
-  ) {
+    const scored = candidates.map(candidate => ({ candidate, ...scoreCandidate(charge, candidate) }))
+      .sort((a, b) => b.score - a.score);
+    const bestScore = scored[0]?.score ?? 0;
+    const hasExact = scored.some(item => item.signals.some(signal => signal.endsWith("_id") || signal === "tracking_number"));
+    const minimumScore = hasExact ? 85 : 60;
+    const accepted = hasExact
+      ? scored.filter(item => item.score >= minimumScore && item.signals.some(signal => signal.endsWith("_id") || signal === "tracking_number"))
+      : scored.filter(item => item.score === bestScore && item.score >= minimumScore);
+    const bestSkus = new Set(accepted.map(item => normalizeText(item.candidate.sku)).filter(Boolean));
+    const ambiguous = !hasExact && (accepted.length === 0 || bestSkus.size !== 1 || (scored[1] && bestScore - scored[1].score < 10));
+    const selected = ambiguous ? [] : accepted;
+
     let merged = {
       ...charge,
-
-      matched_sources:
-        charge.source_file
-          ? [
-              charge.source_file
-            ]
-          : []
+      matched_sources: charge.source_file ? [charge.source_file] : [],
+      reconciliation_method: selected.length ? method : "unmatched",
+      reconciliation_confidence: selected.length ? Math.min(1, bestScore / 120) : 0,
+      reconciliation_signals: selected[0]?.signals || [],
+      reconciliation_ambiguity: ambiguous,
+      items: []
     };
 
-    const used =
-      new Set();
-
-    for (
-      const key
-      of identifierKeys(charge)
-    ) {
-      for (
-        const candidate
-        of index.get(key) || []
-      ) {
-        const id =
-          `${candidate.source_file}|${candidate.source_sheet}`;
-
-        if (used.has(id)) {
-          continue;
-        }
-
-        used.add(id);
-
-        merged =
-          mergeRows(
-            merged,
-            candidate
-          );
+    const itemKeys = new Set();
+    for (const { candidate } of selected) {
+      merged = mergeRows(merged, candidate);
+      const sku = normalizeText(candidate.sku);
+      const itemKey = `${sku || ""}|${normalizeText(candidate.product_name) || ""}|${safeNumber(candidate.quantity) ?? ""}`;
+      if ((sku || candidate.product_name) && !itemKeys.has(itemKey)) {
+        itemKeys.add(itemKey);
+        merged.items.push({
+          sku,
+          product_name: normalizeText(candidate.product_name),
+          quantity: safeNumber(candidate.quantity),
+          source_file: candidate.source_file,
+          source_sheet: candidate.source_sheet,
+          source_row: candidate.source_row ?? null
+        });
       }
     }
+    if (merged.items.length === 1) merged.sku = merged.items[0].sku || merged.sku;
+    if (merged.items.length > 1) merged.sku = null;
+    return merged;
+  });
 
-    reconciled.push(
-      merged
-    );
-  }
-
-  return {
-    all_rows:
-      canonicalRows,
-
-    charge_rows:
-      chargeRows,
-
-    reconciled_rows:
-      reconciled
-  };
+  return { all_rows: canonicalRows, charge_rows: chargeRows, reconciled_rows: reconciled };
 }
 
 // ============================================================
@@ -2353,17 +2515,14 @@ export async function auditFullInput(
     const mappedSource
     of mappedSources
   ) {
-    for (
-      const rawRow
-      of mappedSource
-        .source.rows
-    ) {
+    for (const [rowIndex, rawRow] of mappedSource.source.rows.entries()) {
       const canonical =
         canonicalRowFromSource(
           rawRow,
           mappedSource,
           sellerId
         );
+      canonical.source_row = rowIndex + 2;
 
       const useful =
         identifierKeys(
@@ -2601,6 +2760,11 @@ export async function auditFullInput(
       sku:
         row.sku,
 
+      items:
+        Array.isArray(row.items)
+          ? row.items
+          : [],
+
       quantity:
         row.quantity,
 
@@ -2693,7 +2857,14 @@ export async function auditFullInput(
           row.matched_sources ||
           [
             row.source_file
-          ].filter(Boolean)
+          ].filter(Boolean),
+
+        reconciliation: {
+          method: row.reconciliation_method || "unmatched",
+          confidence: row.reconciliation_confidence ?? 0,
+          signals: row.reconciliation_signals || [],
+          ambiguity: row.reconciliation_ambiguity || false
+        }
       }
     });
   }
