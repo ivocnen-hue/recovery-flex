@@ -65,6 +65,16 @@ export const FindingSchema = z
     carrier: z.string().nullable().default(null),
     match_method: z.string().nullable(),
     confidence: z.number().min(0).max(1).nullable(),
+    technical_data: z
+      .object({
+        dimensions_raw: z.string().nullable(),
+        height_cm: z.number().nullable(),
+        width_cm: z.number().nullable(),
+        length_cm: z.number().nullable(),
+        weight_g: z.number().nullable(),
+        volume_cm3: z.number().nullable(),
+      })
+      .optional(),
     evidence: z.array(EvidenceSchema),
   })
   .strict();

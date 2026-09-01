@@ -5,11 +5,19 @@ import {
   AuditSourceSchema,
 } from "../contracts/schemas";
 import type { AuditInput } from "../contracts/types";
-import { request } from "./client";
+import { BASE_URL, request } from "./client";
 export const auditsApi = {
   list: () => request("/api/v1/audits", AuditListSchema),
   get: (id: string) =>
     request("/api/v1/audits/" + encodeURIComponent(id), AuditResponseSchema),
+  downloadDossier: async (id: string) => {
+    const response = await fetch(
+      BASE_URL + "/api/v1/audits/" + encodeURIComponent(id) + "/dossier.xlsx",
+      { credentials: "omit" },
+    );
+    if (!response.ok) throw new Error("Não foi possível gerar o dossiê em Excel.");
+    return response.blob();
+  },
   run: async (input: AuditInput) => {
     const channels = input.channels?.length
       ? input.channels

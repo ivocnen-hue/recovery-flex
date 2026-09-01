@@ -1,4 +1,5 @@
 import { parseAuditUpload, parseSingleAuditSource } from "./ingestion.js";
+import * as XLSX from "xlsx";
 
 const SCHEMA_VERSION = "1.0";
 
@@ -68,6 +69,14 @@ export function canonicalizeAudit(payload, input = {}, forcedAuditId) {
       carrier: nullableText(result.carrier),
       match_method: sourceFiles.length > 1 ? "identifier" : null,
       confidence: null,
+      technical_data: {
+        dimensions_raw: nullableText(result?.technical_data?.dimensions_raw),
+        height_cm: nullableNumber(result?.technical_data?.height_cm),
+        width_cm: nullableNumber(result?.technical_data?.width_cm),
+        length_cm: nullableNumber(result?.technical_data?.length_cm),
+        weight_g: nullableNumber(result?.technical_data?.weight_g),
+        volume_cm3: nullableNumber(result?.technical_data?.volume_cm3),
+      },
       evidence,
     };
   });
@@ -272,6 +281,207 @@ async function getEvidence(env, json, auditId) {
     schema_version: SCHEMA_VERSION,
     finding_id: auditId,
     items: results.map(row => parseJson(row.payload_json)).filter(Boolean),
+  });
+}
+
+const excelText = value => value === null || value === undefined ? "" : String(value);
+
+export function buildAuditWorkbook(audit, findings) {
+  const workbook = XLSX.utils.book_new();
+  workbook.Workbook = { CalcPr: { fullCalcOnLoad: true, forceFullCalc: true, calcMode: "auto" } };
+  const detailRows = findings.map(item => [
+    item.finding_id,
+    item.status,
+    excelText(item.marketplace),
+    excelText(item.tracking_number),
+    excelText(item.order_id),
+    excelText(item.shipment_id),
+    excelText(item.sku),
+    item.quantity,
+    item.charged_amount,
+    item.expected_amount,
+    item.difference,
+    null,
+    item.recoverable_amount,
+    null,
+    excelText(item.rule_id),
+    item.confidence,
+    (item.evidence || []).map(evidence => evidence.source_file).filter(Boolean).join(" | "),
+    null,
+  ]);
+  const detailHeader = [
+    "Finding ID", "Status", "Canal", "Rastreamento", "Pedido", "Shipment", "SKU",
+    "Qtd.", "Cobrado", "Esperado", "Diferença backend", "Diferença verificada",
+    "Recuperável backend", "Recuperável verificado", "Regra", "Confiança",
+    "Arquivos de evidência", "Controle",
+  ];
+  const detailSheet = XLSX.utils.aoa_to_sheet([detailHeader, ...detailRows]);
+  const lastRow = Math.max(2, detailRows.length + 1);
+  for (let row = 2; row <= lastRow; row += 1) {
+    const item = findings[row - 2];
+    const verifiedDifference = item?.charged_amount == null || item?.expected_amount == null
+      ? null
+      : Number(item.charged_amount) - Number(item.expected_amount);
+    const verifiedRecovery = item?.status === "OVERCHARGED" ? Math.max(0, Number(verifiedDifference || 0)) : 0;
+    const differenceOk = item?.difference == null || verifiedDifference == null || Math.abs(Number(item.difference) - verifiedDifference) < 0.01;
+    const recoveryOk = item?.recoverable_amount == null || Math.abs(Number(item.recoverable_amount) - verifiedRecovery) < 0.01;
+    detailSheet[`L${row}`] = { t: verifiedDifference == null ? "s" : "n", f: `IF(OR(I${row}="",J${row}=""),"",I${row}-J${row})`, v: verifiedDifference ?? "" };
+    detailSheet[`N${row}`] = { t: "n", f: `IF(B${row}="OVERCHARGED",MAX(0,L${row}),0)`, v: verifiedRecovery };
+    detailSheet[`R${row}`] = { t: "s", f: `IF(AND(OR(K${row}="",ROUND(K${row},2)=ROUND(L${row},2)),OR(M${row}="",ROUND(M${row},2)=ROUND(N${row},2))),"OK","REVISAR")`, v: differenceOk && recoveryOk ? "OK" : "REVISAR" };
+  }
+  detailSheet["!autofilter"] = { ref: `A1:R${lastRow}` };
+  detailSheet["!freeze"] = { xSplit: 0, ySplit: 1 };
+  detailSheet["!cols"] = [28,16,18,20,20,20,22,9,14,14,17,18,19,20,25,12,55,14].map(wch => ({ wch }));
+  for (const column of ["I", "J", "K", "L", "M", "N"]) {
+    for (let row = 2; row <= lastRow; row += 1) if (detailSheet[`${column}${row}`]) detailSheet[`${column}${row}`].z = 'R$ #,##0.00;[Red]-R$ #,##0.00';
+  }
+  XLSX.utils.book_append_sheet(workbook, detailSheet, "3 Pedidos Auditados");
+
+  const groups = new Map();
+  for (const item of findings) {
+    const key = item.sku || "SEM SKU IDENTIFICADO";
+    const group = groups.get(key) || { sku: key, findings: 0, recoverable: 0, units: 0, missingTracking: 0 };
+    group.findings += 1;
+    group.recoverable += Number(item.recoverable_amount || 0);
+    group.units += Number(item.quantity || 0);
+    if (!item.tracking_number) group.missingTracking += 1;
+    groups.set(key, group);
+  }
+  const summaryRows = [...groups.values()].sort((a, b) => b.recoverable - a.recoverable).map(group => [
+    group.sku, group.findings, group.units, group.recoverable, group.missingTracking,
+    group.sku === "SEM SKU IDENTIFICADO" ? "PENDENTE" : "OK",
+  ]);
+  const summaryTotals = summaryRows.reduce((totals, row) => ({
+    findings: totals.findings + Number(row[1] || 0),
+    units: totals.units + Number(row[2] || 0),
+    recoverable: totals.recoverable + Number(row[3] || 0),
+    missingTracking: totals.missingTracking + Number(row[4] || 0),
+  }), { findings: 0, units: 0, recoverable: 0, missingTracking: 0 });
+  const summarySheet = XLSX.utils.aoa_to_sheet([
+    ["DOSSIE DE AUDITORIA — ENVIOS FLEX"],
+    [`Auditoria ${audit.audit_id} | ${audit.seller} | ${audit.period}`],
+    [],
+    ["SKU / Família", "Findings", "Unidades", "Recuperável", "Sem tracking", "Completude"],
+    ...summaryRows,
+    ["TOTAL", { f: `SUM(B5:B${summaryRows.length + 4})`, v: summaryTotals.findings }, { f: `SUM(C5:C${summaryRows.length + 4})`, v: summaryTotals.units }, { f: `SUM(D5:D${summaryRows.length + 4})`, v: summaryTotals.recoverable }, { f: `SUM(E5:E${summaryRows.length + 4})`, v: summaryTotals.missingTracking }, ""],
+  ]);
+  summarySheet["!cols"] = [{ wch: 32 }, { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 15 }, { wch: 16 }];
+  for (let row = 5; row <= summaryRows.length + 5; row += 1) if (summarySheet[`D${row}`]) summarySheet[`D${row}`].z = 'R$ #,##0.00;[Red]-R$ #,##0.00';
+  summarySheet["!freeze"] = { xSplit: 0, ySplit: 4 };
+  XLSX.utils.book_append_sheet(workbook, summarySheet, "1 Resumo Executivo");
+
+  const dimensionGroups = new Map();
+  for (const item of findings) {
+    const technical = item.technical_data || {};
+    const maximum = [technical.height_cm, technical.width_cm, technical.length_cm]
+      .filter(value => value != null)
+      .reduce((max, value) => Math.max(max, Number(value)), 0) || null;
+    const key = [item.sku || "SEM SKU", item.quantity ?? "", technical.dimensions_raw || "", technical.weight_g ?? ""].join("|");
+    const group = dimensionGroups.get(key) || {
+      sku: item.sku || "SEM SKU IDENTIFICADO",
+      quantity: item.quantity,
+      dimensions: technical.dimensions_raw,
+      weight: technical.weight_g,
+      maximum,
+      findings: 0,
+    };
+    group.findings += 1;
+    dimensionGroups.set(key, group);
+  }
+  const dimensionRows = [...dimensionGroups.values()].map(group => [
+    group.sku,
+    group.quantity,
+    excelText(group.dimensions),
+    group.weight,
+    group.maximum,
+    group.quantity != null && group.quantity <= 3 && group.weight != null && group.weight < 2000 && group.maximum != null && group.maximum <= 80 ? "SIM" : "PENDENTE",
+    group.findings,
+  ]);
+  const dimensionsSheet = XLSX.utils.aoa_to_sheet([
+    ["DIMENSOES OBSERVADAS NOS ENVIOS — FLEX"],
+    ["Regra auditada: ate 3 unidades, peso menor que 2 kg e maior dimensao de ate 80 cm."],
+    [],
+    ["SKU", "Qtd. unidades", "Dimensão", "Peso (g)", "Maior dimensão (cm)", "Atende regra?", "Findings"],
+    ...dimensionRows,
+  ]);
+  dimensionsSheet["!autofilter"] = { ref: `A4:G${Math.max(5, dimensionRows.length + 4)}` };
+  dimensionsSheet["!freeze"] = { xSplit: 0, ySplit: 4 };
+  dimensionsSheet["!cols"] = [{ wch: 30 }, { wch: 15 }, { wch: 30 }, { wch: 14 }, { wch: 22 }, { wch: 18 }, { wch: 14 }];
+  XLSX.utils.book_append_sheet(workbook, dimensionsSheet, "2 Dimensoes x Quantidade");
+
+  const evidenceRows = [];
+  for (const item of findings) for (const evidence of item.evidence || []) evidenceRows.push([
+    item.finding_id, item.sku, item.tracking_number, evidence.source_file, evidence.sheet,
+    evidence.row, evidence.original_column, excelText(evidence.original_value),
+    evidence.canonical_field, excelText(evidence.normalized_value), evidence.match_method,
+    evidence.confidence, evidence.rule, (evidence.conflicts || []).join(" | "),
+  ]);
+  const evidenceSheet = XLSX.utils.aoa_to_sheet([["Finding ID", "SKU", "Tracking", "Arquivo fonte", "Aba", "Linha", "Coluna original", "Valor original", "Campo canônico", "Valor normalizado", "Matching", "Confiança", "Regra", "Conflitos"], ...evidenceRows]);
+  evidenceSheet["!autofilter"] = { ref: `A1:N${Math.max(2, evidenceRows.length + 1)}` };
+  evidenceSheet["!freeze"] = { xSplit: 0, ySplit: 1 };
+  evidenceSheet["!cols"] = [28,22,20,48,18,10,22,22,22,22,18,12,28,40].map(wch => ({ wch }));
+  XLSX.utils.book_append_sheet(workbook, evidenceSheet, "4 Evidencias");
+
+  const backendRecovery = findings.reduce((total, item) => total + Number(item.recoverable_amount || 0), 0);
+  const verifiedRecovery = findings.reduce((total, item) => {
+    if (item.status !== "OVERCHARGED" || item.charged_amount == null || item.expected_amount == null) return total;
+    return total + Math.max(0, Number(item.charged_amount) - Number(item.expected_amount));
+  }, 0);
+  const missingSku = findings.filter(item => !item.sku).length;
+  const missingTracking = findings.filter(item => !item.tracking_number).length;
+  const calculationDivergences = findings.filter(item => {
+    const difference = item.charged_amount == null || item.expected_amount == null ? null : Number(item.charged_amount) - Number(item.expected_amount);
+    const recovery = item.status === "OVERCHARGED" ? Math.max(0, Number(difference || 0)) : 0;
+    return (item.difference != null && difference != null && Math.abs(Number(item.difference) - difference) >= 0.01)
+      || (item.recoverable_amount != null && Math.abs(Number(item.recoverable_amount) - recovery) >= 0.01);
+  }).length;
+  const warningCount = Array.isArray(audit.warnings) ? audit.warnings.length : 0;
+  const controlStatuses = [
+    Math.abs(backendRecovery - Number(audit.total_recoverable || 0)) < 0.01,
+    Math.abs(verifiedRecovery - backendRecovery) < 0.01,
+    findings.length === Number(audit.findings || findings.length),
+    missingSku === 0,
+    missingTracking === 0,
+    calculationDivergences === 0,
+    warningCount === 0,
+  ];
+  const controls = [
+    ["CONTROLES E CONCILIACOES"],
+    ["Controle", "Valor apurado", "Valor esperado", "Diferença", "Status", "Observação"],
+    ["Total recuperável", { f: `SUM('3 Pedidos Auditados'!M2:M${lastRow})`, v: backendRecovery }, Number(audit.total_recoverable || 0), { f: "=B3-C3", v: backendRecovery - Number(audit.total_recoverable || 0) }, { f: '=IF(ABS(D3)<0.01,"OK","REVISAR")', v: controlStatuses[0] ? "OK" : "REVISAR" }, "Soma dos findings versus resumo do Worker"],
+    ["Memória de cálculo", { f: `SUM('3 Pedidos Auditados'!N2:N${lastRow})`, v: verifiedRecovery }, { f: `SUM('3 Pedidos Auditados'!M2:M${lastRow})`, v: backendRecovery }, { f: "=B4-C4", v: verifiedRecovery - backendRecovery }, { f: '=IF(ABS(D4)<0.01,"OK","REVISAR")', v: controlStatuses[1] ? "OK" : "REVISAR" }, "Recálculo cobrado - esperado"],
+    ["Findings", findings.length, Number(audit.findings || findings.length), { f: "=B5-C5", v: findings.length - Number(audit.findings || findings.length) }, { f: '=IF(D5=0,"OK","REVISAR")', v: controlStatuses[2] ? "OK" : "REVISAR" }, "Quantidade exportada versus banco"],
+    ["SKUs ausentes", { f: `COUNTBLANK('3 Pedidos Auditados'!G2:G${lastRow})`, v: missingSku }, 0, { f: "=B6-C6", v: missingSku }, { f: '=IF(D6=0,"OK","PENDENTE")', v: controlStatuses[3] ? "OK" : "PENDENTE" }, "Todo caso deve identificar SKU"],
+    ["Trackings ausentes", { f: `COUNTBLANK('3 Pedidos Auditados'!D2:D${lastRow})`, v: missingTracking }, 0, { f: "=B7-C7", v: missingTracking }, { f: '=IF(D7=0,"OK","PENDENTE")', v: controlStatuses[4] ? "OK" : "PENDENTE" }, "Todo envio deve ser rastreável"],
+    ["Cálculos divergentes", { f: `COUNTIF('3 Pedidos Auditados'!R2:R${lastRow},"REVISAR")`, v: calculationDivergences }, 0, { f: "=B8-C8", v: calculationDivergences }, { f: '=IF(D8=0,"OK","REVISAR")', v: controlStatuses[5] ? "OK" : "REVISAR" }, "Diferença e recuperável por linha"],
+    ["Alertas do Worker", warningCount, 0, { f: "=B9-C9", v: warningCount }, { f: '=IF(D9=0,"OK","PENDENTE")', v: controlStatuses[6] ? "OK" : "PENDENTE" }, "Alertas de parsing, mapping e contexto"],
+    [],
+    ["STATUS FINAL", "", "", "", { f: '=IF(COUNTIF(E3:E9,"<>OK")=0,"VERIFICADO","PENDENTE DE REVISAO")', v: controlStatuses.every(Boolean) ? "VERIFICADO" : "PENDENTE DE REVISAO" }, "Só fica verificado quando todos os controles fecham"],
+  ];
+  const controlsSheet = XLSX.utils.aoa_to_sheet(controls);
+  controlsSheet["!cols"] = [{ wch: 27 }, { wch: 18 }, { wch: 18 }, { wch: 14 }, { wch: 24 }, { wch: 55 }];
+  for (const row of [3, 4]) for (const column of ["B", "C", "D"]) if (controlsSheet[`${column}${row}`]) controlsSheet[`${column}${row}`].z = 'R$ #,##0.00;[Red]-R$ #,##0.00';
+  XLSX.utils.book_append_sheet(workbook, controlsSheet, "5 Controles");
+  workbook.SheetNames = ["1 Resumo Executivo", "2 Dimensoes x Quantidade", "3 Pedidos Auditados", "4 Evidencias", "5 Controles"];
+  return workbook;
+}
+
+async function downloadDossier(env, json, auditId) {
+  const audit = await env.DB.prepare("SELECT * FROM audits WHERE audit_id = ?").bind(auditId).first();
+  if (!audit) return apiError(json, 404, "AUDIT_NOT_FOUND", "Auditoria não encontrada.");
+  const { results = [] } = await env.DB.prepare("SELECT payload_json FROM findings WHERE audit_id = ? ORDER BY rowid").bind(auditId).all();
+  const findings = results.map(row => parseJson(row.payload_json)).filter(Boolean);
+  const workbook = buildAuditWorkbook({
+    ...audit,
+    warnings: parseJson(audit.warnings_json) || [],
+  }, findings);
+  const bytes = XLSX.write(workbook, { type: "array", bookType: "xlsx", compression: true });
+  return new Response(bytes, {
+    headers: {
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename="dossie-recovery-${auditId}.xlsx"`,
+      "Access-Control-Allow-Origin": "*",
+    },
   });
 }
 
@@ -520,13 +730,14 @@ export async function handleV1Request(request, env, url, dependencies) {
     return createDraft(request, env, json);
   }
 
-  const match = url.pathname.match(/^\/api\/v1\/audits\/([^/]+)(?:\/(findings|evidence|sources|run))?$/);
+  const match = url.pathname.match(/^\/api\/v1\/audits\/([^/]+)(?:\/(findings|evidence|sources|run|dossier\.xlsx))?$/);
   if (!match) return apiError(json, 404, "ENDPOINT_NOT_FOUND", "Endpoint não encontrado.");
   const auditId = decodeURIComponent(match[1]);
   const resource = match[2];
   if (request.method === "GET" && !resource) return getAudit(env, json, auditId);
   if (request.method === "GET" && resource === "findings") return getFindings(env, json, auditId);
   if (request.method === "GET" && resource === "evidence") return getEvidence(env, json, auditId);
+  if (request.method === "GET" && resource === "dossier.xlsx") return downloadDossier(env, json, auditId);
   if (request.method === "POST" && resource === "sources") return uploadSource(request, env, json, auditId);
   if (request.method === "POST" && resource === "run") {
     return runStagedAudit(request, env, json, auditFull, auditFullInput, auditId);

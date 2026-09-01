@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canonicalizeAudit, sourcesJsonByteLength, streamSourcesJson } from "../src/api-v1.js";
+import { buildAuditWorkbook, canonicalizeAudit, sourcesJsonByteLength, streamSourcesJson } from "../src/api-v1.js";
 import { sourceMappingKey } from "../src/index.js";
 
 const payload = {
@@ -65,5 +65,34 @@ describe("canonical API v1 adapter", () => {
       carrier: "GT2",
       channels: ["Mercado Livre", "Shopee", "Envios avulsos"],
     });
+  });
+
+  it("builds an auditable Excel dossier with formulas and completeness checks", () => {
+    const canonical = canonicalizeAudit(payload, {
+      seller: "Casa Alva",
+      marketplace: "Mercado Livre, Shopee",
+      operation: "Flex",
+      period_start: "2026-01-01",
+      period_end: "2026-12-31",
+      sources: [{ rows: [1, 2, 3, 4] }],
+    }, "audit-excel");
+    const workbook = buildAuditWorkbook({
+      audit_id: "audit-excel",
+      seller: "Casa Alva",
+      period: "2026-01-01 — 2026-12-31",
+      findings: canonical.findings.length,
+      total_recoverable: canonical.audit.summary.total_recoverable,
+      warnings: [],
+    }, canonical.findings);
+    expect(workbook.SheetNames).toEqual([
+      "1 Resumo Executivo",
+      "2 Dimensoes x Quantidade",
+      "3 Pedidos Auditados",
+      "4 Evidencias",
+      "5 Controles",
+    ]);
+    expect(workbook.Sheets["3 Pedidos Auditados"].L2.f).toContain("I2-J2");
+    expect(workbook.Sheets["3 Pedidos Auditados"].N2.f).toContain("OVERCHARGED");
+    expect(workbook.Sheets["5 Controles"].E11.f).toContain("VERIFICADO");
   });
 });

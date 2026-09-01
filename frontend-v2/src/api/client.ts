@@ -1,7 +1,7 @@
 import type { ZodType } from "zod";
 import { ApiErrorSchema } from "../contracts/schemas";
 import { RecoveryError } from "../lib/errors";
-const BASE_URL = (
+export const BASE_URL = (
   import.meta.env.VITE_API_BASE_URL ||
   "https://recovery-audit-test.ivocnen.workers.dev"
 ).replace(/\/$/, "");

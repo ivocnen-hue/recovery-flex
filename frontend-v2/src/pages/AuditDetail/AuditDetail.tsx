@@ -7,6 +7,7 @@ import { useAudit, useFindings } from "../../hooks/useRecoveryData";
 import { formatCurrency } from "../../lib/currency";
 import { useState } from "react";
 import type { Finding } from "../../contracts/types";
+import { auditsApi } from "../../api/audits";
 
 export function AuditDetail() {
   const { auditId = "" } = useParams();
@@ -14,6 +15,7 @@ export function AuditDetail() {
   const findings = useFindings(auditId);
   const [selected, setSelected] = useState<Finding | null>(null);
   const [page, setPage] = useState(0);
+  const [exporting, setExporting] = useState(false);
   if (audit.isLoading || findings.isLoading) return <LoadingState />;
   if (audit.error || findings.error) return <ErrorState error={audit.error || findings.error} />;
   const data = audit.data!;
@@ -32,6 +34,20 @@ export function AuditDetail() {
     anchor.click();
     URL.revokeObjectURL(url);
   };
+  const downloadExcel = async () => {
+    setExporting(true);
+    try {
+      const blob = await auditsApi.downloadDossier(auditId);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `dossie-recovery-${auditId}.xlsx`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  };
   return <div className="page dossier">
     <section className="page-intro dossier-heading">
       <div>
@@ -41,7 +57,8 @@ export function AuditDetail() {
       </div>
       <div className="dossier-actions">
         <button className="button" onClick={() => window.print()}><Printer /> Imprimir / salvar PDF</button>
-        <button className="button primary" onClick={download}><Download /> Baixar dados</button>
+        <button className="button primary" onClick={downloadExcel} disabled={exporting}><Download /> {exporting ? "Gerando Excel..." : "Baixar dossiê Excel"}</button>
+        <button className="button" onClick={download}><Download /> JSON técnico</button>
       </div>
     </section>
     <section className="panel dossier-context">
