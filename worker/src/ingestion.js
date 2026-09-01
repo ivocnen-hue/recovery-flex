@@ -3,7 +3,7 @@ import * as XLSX from "xlsx";
 export const UPLOAD_LIMITS = Object.freeze({
   maxFiles: 32,
   maxRequestBytes: 25 * 1024 * 1024,
-  maxFileBytes: 10 * 1024 * 1024,
+  maxFileBytes: 25 * 1024 * 1024,
   maxRowsPerSheet: 50_000,
   maxColumnsPerSheet: 200,
 });
@@ -121,7 +121,7 @@ export async function parseAuditUpload(request) {
   const sources = [];
   for (const file of files) {
     if (Number(file.size || 0) > UPLOAD_LIMITS.maxFileBytes) {
-      throw new Error(`O arquivo ${file.name} excede o limite de 10 MB.`);
+      throw new Error(`O arquivo ${file.name} excede o limite de 25 MB.`);
     }
     const extension = extensionOf(file.name);
     if (!["csv", "xls", "xlsx"].includes(extension)) {
@@ -152,14 +152,14 @@ export async function parseAuditUpload(request) {
 export async function parseSingleAuditSource(request) {
   const contentLength = Number(request.headers.get("content-length") || 0);
   if (contentLength > UPLOAD_LIMITS.maxFileBytes + 1024 * 1024) {
-    throw new Error("O arquivo excede o limite de 10 MB.");
+    throw new Error("O arquivo excede o limite de 25 MB.");
   }
   const form = await request.formData();
   const files = form.getAll("file").filter(value => typeof value?.arrayBuffer === "function");
   if (files.length !== 1) throw new Error("Envie exatamente um arquivo por vez.");
   const file = files[0];
   if (Number(file.size || 0) > UPLOAD_LIMITS.maxFileBytes) {
-    throw new Error(`O arquivo ${file.name} excede o limite de 10 MB.`);
+    throw new Error(`O arquivo ${file.name} excede o limite de 25 MB.`);
   }
   const extension = extensionOf(file.name);
   if (!["csv", "xls", "xlsx"].includes(extension)) {

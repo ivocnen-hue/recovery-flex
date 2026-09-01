@@ -82,4 +82,16 @@ describe("backend file ingestion", () => {
       body: form,
     }))).rejects.toThrow("exatamente um arquivo");
   });
+
+  it("allows a staged spreadsheet larger than 10 MB up to the 25 MB limit", async () => {
+    const form = new FormData();
+    const csv = `tracking,charged_amount\nABC,12.50\n${" ".repeat(11 * 1024 * 1024)}`;
+    form.append("file", new File([csv], "large.csv"));
+    const parsed = await parseSingleAuditSource(new Request("https://example.test/api/v1/audits/a/sources", {
+      method: "POST",
+      body: form,
+    }));
+    expect(parsed.file.size).toBeGreaterThan(10 * 1024 * 1024);
+    expect(parsed.sources[0].rows[0]).toEqual(["ABC", "12.50"]);
+  });
 });
