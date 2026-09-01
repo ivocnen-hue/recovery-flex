@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { canonicalizeAudit } from "../src/api-v1.js";
+import { sourceMappingKey } from "../src/index.js";
 
 const payload = {
   warnings: [],
@@ -33,5 +34,12 @@ describe("canonical API v1 adapter", () => {
     expect(result.audit.summary.matched_rows).toBe(1);
     expect(result.findings[0]).toMatchObject({ finding_id: "audit-test:finding:1", status: "OVERCHARGED", match_method: "identifier" });
   });
-});
 
+  it("reuses semantic mapping only for equivalent layouts and context", () => {
+    const first = { filename: "jan.csv", headers: ["Tracking", "Valor"], context: { marketplace: "Mercado Livre" } };
+    const second = { filename: "fev.csv", headers: ["tracking", "valor"], context: { marketplace: "mercado livre" } };
+    const different = { filename: "rules.csv", headers: ["SKU", "Preço"] };
+    expect(sourceMappingKey(first, "seller-a")).toBe(sourceMappingKey(second, "seller-a"));
+    expect(sourceMappingKey(first, "seller-a")).not.toBe(sourceMappingKey(different, "seller-a"));
+  });
+});

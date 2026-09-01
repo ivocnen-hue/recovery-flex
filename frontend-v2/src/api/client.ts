@@ -25,6 +25,13 @@ export async function request<T>(
     });
   } catch (error) {
     clearTimeout(timeout);
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new RecoveryError(
+        "NETWORK_ERROR",
+        "O processamento excedeu o tempo de espera. Tente novamente com menos arquivos.",
+        { endpoint, cause: "timeout" },
+      );
+    }
     throw new RecoveryError(
       "NETWORK_ERROR",
       "Não foi possível conectar ao Recovery. Verifique sua conexão.",

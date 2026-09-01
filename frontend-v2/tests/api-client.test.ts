@@ -46,6 +46,14 @@ describe("API client", () => {
       request("/api/v1/audits/a", AuditResponseSchema),
     ).rejects.toMatchObject({ code: "NETWORK_ERROR" });
   });
+  it("explica quando o processamento excede o tempo", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new DOMException("aborted", "AbortError")));
+    await expect(
+      request("/api/v1/audits", AuditResponseSchema),
+    ).rejects.toMatchObject({
+      message: "O processamento excedeu o tempo de espera. Tente novamente com menos arquivos.",
+    });
+  });
   it("classifica erro HTTP", async () => {
     vi.stubGlobal(
       "fetch",

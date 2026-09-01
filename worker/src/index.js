@@ -704,6 +704,7 @@ Retorne SOMENTE JSON válido:
 
   "warnings": []
 }
+
 `;
 
   const payload = {
@@ -848,6 +849,19 @@ Retorne SOMENTE JSON válido:
     mapper:
       result
   };
+}
+
+export function sourceMappingKey(rawSource, sellerId) {
+  const source = normalizeSource(rawSource);
+  return JSON.stringify({
+    seller_id: normalizeText(sellerId),
+    headers: source.headers.map(comparableText),
+    context: {
+      marketplace: comparableText(source.context.marketplace),
+      logistics_mode: comparableText(source.context.logistics_mode),
+      carrier: comparableText(source.context.carrier)
+    }
+  });
 }
 
 // ============================================================
@@ -2233,16 +2247,49 @@ async function auditFull(
 
   const mappingWarnings = [];
 
+  const mapperCache = new Map();
+
   for (
     const rawSource
     of rawSources
   ) {
-    const mapped =
-      await mapSourceWithAI(
-        env,
+    const cacheKey =
+      sourceMappingKey(
         rawSource,
         sellerId
       );
+
+    const cachedMapper =
+      mapperCache.get(
+        cacheKey
+      );
+
+    const mapped =
+      cachedMapper
+        ? {
+            source:
+              normalizeSource(
+                rawSource
+              ),
+            mapper:
+              structuredClone(
+                cachedMapper
+              )
+          }
+        : await mapSourceWithAI(
+            env,
+            rawSource,
+            sellerId
+          );
+
+    if (!cachedMapper) {
+      mapperCache.set(
+        cacheKey,
+        structuredClone(
+          mapped.mapper
+        )
+      );
+    }
 
     mappedSources.push(
       mapped

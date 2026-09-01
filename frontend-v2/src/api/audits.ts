@@ -17,7 +17,7 @@ export const auditsApi = {
     return request("/api/v1/audits", AuditResponseSchema, {
       method: "POST",
       body: form,
-      timeout: 120_000,
+      timeout: 300_000,
     });
   },
 };
