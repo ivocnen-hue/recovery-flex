@@ -1,0 +1,16 @@
+{
+  "name": "recovery-audit-worker",
+  "private": true,
+  "version": "0.6.0",
+  "type": "module",
+  "scripts": {
+    "check": "wrangler deploy --dry-run --keep-vars",
+    "test": "vitest run",
+    "types": "wrangler types",
+    "deploy:staging": "wrangler deploy --keep-vars"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4",
+    "wrangler": "^4.127.1"
+  }
+}

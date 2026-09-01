@@ -20,7 +20,7 @@ export async function request<T>(
   try {
     response = await fetch(BASE_URL + endpoint, {
       ...options,
-      credentials: "include",
+      credentials: "omit",
       signal: controller.signal,
     });
   } catch (error) {

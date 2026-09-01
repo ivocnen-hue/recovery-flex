@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "recovery-audit-test",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-31",
+  "observability": {
+    "enabled": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "recovery-audit-staging",
+      "database_id": "91a58605-88c1-42d4-aa27-6c4e188e867c",
+      "migrations_dir": "migrations"
+    }
+  ]
+}
+
