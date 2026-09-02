@@ -25,6 +25,17 @@ describe("canonical API v1 adapter", () => {
     expect(questions.every(item => item.question.endsWith("?"))).toBe(true);
   });
 
+  it("turns structured AI ambiguities into follow-up questions instead of zero answers", () => {
+    const questions = clarificationQuestions([
+      { topic: "billable_weight", description: "A fórmula não informa o divisor do peso dimensional." },
+      { topic: "optional_fast_shipping", description: "Não se sabe se houve adesão ao frete grátis rápido opcional." },
+      { topic: "category_scope", description: "Existem categorias excepcionais com custos diferenciados." },
+    ]);
+    expect(questions.map(item => item.id)).toEqual(expect.arrayContaining([
+      "optional_fast_shipping", "dimensional_weight_divisor", "category_exceptions",
+    ]));
+  });
+
   it("asks for known Mercado Livre context before calling AI", () => {
     const content = "Custos dos Envios no Mercado Livre para MercadoLíder. Válido para produtos novos por Envios Full, Coleta e Agências. Frete grátis rápido opcional. Produtos de menos de R$ 19 pagam metade do preço. Até 0,3 kg. De 0,3 a 0,5 kg. O custo considera o peso e as medidas. Casos excepcionais por localização. Categorias têm custos diferenciados.";
     const missing = preflightRuleClarifications({ content, context: { rule_clarifications: {} } });
@@ -53,6 +64,12 @@ describe("canonical API v1 adapter", () => {
       seller_reputation: "Verde",
       validity_start: "2026-07-07",
     }).map(item => item.id)).toEqual(["validity"]);
+  });
+
+  it("keeps an explicit uncertainty answer unresolved", () => {
+    const questions = clarificationQuestions(["A adesão ao frete grátis rápido opcional não foi informada."]);
+    expect(unansweredClarificationQuestions(questions, { optional_fast_shipping: "Não sei" })
+      .map(item => item.id)).toEqual(["optional_fast_shipping"]);
   });
 
   it("preserves explicit financial calculations", () => {

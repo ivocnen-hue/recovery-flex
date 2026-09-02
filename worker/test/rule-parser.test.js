@@ -63,4 +63,26 @@ describe("PDF rule interpretation", () => {
     expect(parsed.ambiguities).toEqual([]);
     expect(parsed.rule_set.rules).toHaveLength(1);
   });
+
+  it("accepts a fixed Mercado Livre tariff capped at a percentage of the sale", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => aiResponse({
+      rule_set: {
+        name: "Tabela com limite de 50%",
+        marketplace: "Mercado Livre",
+        rules: [{
+          id: "tarifa_limitada",
+          conditions: [{ field: "weight_g", op: "lte", value: 300 }],
+          calculation: { type: "capped_fixed", amount: 12, rate: 0.5, base_field: "sale_amount" },
+        }],
+      },
+      ambiguities: [],
+      warnings: [],
+    })));
+    const parsed = await parseRuleSourceWithAI({ OPENAI_API_KEY: "test" }, {
+      source_name: "tabela-ml.pdf",
+      content: "Tarifa de R$ 12 limitada a 50% do preço do item",
+    }, "seller-1");
+    expect(parsed.ambiguities).toEqual([]);
+    expect(parsed.rule_set.rules[0].calculation.type).toBe("capped_fixed");
+  });
 });

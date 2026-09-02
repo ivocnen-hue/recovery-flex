@@ -305,7 +305,7 @@ async function askAI(
     setTimeout(
       () =>
         controller.abort(),
-      150000
+      270000
     );
 
   try {
@@ -1117,6 +1117,12 @@ Cálculos suportados nesta versão:
 fixed
 per_unit
 percentage
+capped_fixed = o menor valor entre amount e (base_field * rate)
+
+Use somente os campos de condição listados acima. Reputação da conta,
+condição do anúncio, adesão opcional, vigência geral e outras respostas
+de clarificação definem a aplicabilidade/escopo da interpretação; não as
+transforme em campos de linha que não existam no contrato canônico.
 
 Se a fonte tiver regra mais complexa,
 como uma tabela ou matriz tarifária, expanda cada linha/faixa
@@ -1247,7 +1253,7 @@ Retorne SOMENTE JSON válido:
     "max_dimension_cm", "volume_cm3", "sku", "date",
   ]);
   const allowedOps = new Set(["eq", "neq", "gt", "gte", "lt", "lte", "between", "in"]);
-  const allowedCalculations = new Set(["fixed", "per_unit", "percentage"]);
+  const allowedCalculations = new Set(["fixed", "per_unit", "percentage", "capped_fixed"]);
   const numericFields = new Set([
     "quantity", "sale_amount", "weight_g", "height_cm", "width_cm",
     "length_cm", "max_dimension_cm", "volume_cm3",
@@ -1280,10 +1286,21 @@ Retorne SOMENTE JSON válido:
     const validCalculation = allowedCalculations.has(calculation?.type) && (
       calculation.type === "percentage"
         ? Number.isFinite(Number(calculation.rate)) && allowedFields.has(calculation.base_field || "sale_amount")
-        : Number.isFinite(Number(calculation.amount))
+        : calculation.type === "capped_fixed"
+          ? Number.isFinite(Number(calculation.amount)) && Number.isFinite(Number(calculation.rate)) &&
+            allowedFields.has(calculation.base_field || "sale_amount")
+          : Number.isFinite(Number(calculation.amount))
     );
     if (!validConditions || !validCalculation) {
-      validationAmbiguities.push(`Regra ${rule?.id || index + 1} fora do contrato executável seguro.`);
+      const invalidConditions = conditions
+        .filter(condition => !allowedFields.has(condition?.field) || !allowedOps.has(condition?.op))
+        .map(condition => `${String(condition?.field || "campo ausente")}/${String(condition?.op || "operador ausente")}`);
+      const reasons = [];
+      if (!validConditions) reasons.push(invalidConditions.length
+        ? `condição não suportada: ${invalidConditions.join(", ")}`
+        : "condição com valor, faixa ou data inválida");
+      if (!validCalculation) reasons.push(`cálculo não suportado ou incompleto: ${String(calculation?.type || "tipo ausente")}`);
+      validationAmbiguities.push(`Regra ${rule?.id || index + 1} fora do contrato executável seguro (${reasons.join("; ")}).`);
       return false;
     }
     rule.id = String(rule.id || `regra_${index + 1}`);
@@ -2292,6 +2309,20 @@ function calculateExpected(
       base *
       rate
     );
+  }
+
+  if (
+    calculation.type ===
+      "capped_fixed"
+  ) {
+    const amount = safeNumber(calculation.amount);
+    const baseField = calculation.base_field || "sale_amount";
+    const base = safeNumber(row[baseField]);
+    const rate = safeNumber(calculation.rate);
+
+    if (amount === null || base === null || rate === null) return null;
+
+    return Math.min(amount, base * rate);
   }
 
   return null;

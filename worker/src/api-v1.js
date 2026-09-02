@@ -517,7 +517,14 @@ const apiError = (json, status, code, message, details) =>
   json({ ok: false, schema_version: SCHEMA_VERSION, error: { code, message, ...(details ? { details } : {}) } }, status);
 
 export const clarificationQuestions = ambiguities => {
-  const text = ambiguities.join(" ").toLowerCase();
+  const normalizedAmbiguities = ambiguities.map(item => {
+    if (typeof item === "string") return item;
+    if (item && typeof item === "object") {
+      return [item.topic, item.description, item.message].filter(Boolean).join(" ");
+    }
+    return String(item || "");
+  });
+  const text = normalizedAmbiguities.join(" ").toLowerCase();
   const questions = [];
   const add = (id, title, question, answer_type, options, help) => {
     if (!questions.some(item => item.id === id)) questions.push({ id, title, question, answer_type, options, help });
@@ -531,6 +538,8 @@ export const clarificationQuestions = ambiguities => {
   if (text.includes("50%") || text.includes("metade do preço") || text.includes("mínimo entre")) add("price_cap", "Limite de 50%", "A planilha contém o preço de venda de cada item para aplicar o limite de 50%?", "file_or_confirmation", ["Sim, contém o preço", "Não, vou anexar um relatório com os preços"], "Para itens abaixo de R$ 19, o preço é necessário para calcular o teto.");
   if (text.includes("limites") || text.includes("sobreposição") || text.includes("faixas")) add("range_boundaries", "Limites das faixas", "Como devem ser tratados os valores exatamente no limite entre duas faixas?", "single_choice", ["Pertencem à faixa inferior", "Pertencem à faixa superior", "Preciso confirmar com o Mercado Livre"], "Exemplo: exatamente 0,3 kg não pode cair em duas tarifas.");
   if (text.includes("peso dimensional") || text.includes("maior deles")) add("billable_weight", "Peso usado na tarifa", "A tarifa usa o peso real, o peso dimensional ou o maior entre os dois?", "single_choice", ["Peso real", "Peso dimensional", "O maior entre os dois", "Preciso confirmar"], "A planilha precisa conter os dados usados para formar esse peso.");
+  if (text.includes("divisor") || text.includes("fórmula") || text.includes("formula")) add("dimensional_weight_divisor", "Cálculo do peso dimensional", "Qual divisor deve ser usado para calcular o peso dimensional (comprimento × largura × altura ÷ divisor)?", "single_choice", ["6000", "5000", "Outro — informar manualmente", "Não se aplica"], "Use somente o divisor publicado pelo Mercado Livre para esta modalidade e vigência.");
+  if (text.includes("category_scope") || text.includes("categorias excepcionais") || text.includes("custos diferenciados")) add("category_exceptions", "Categorias com tarifa diferenciada", "Existem nesta auditoria SKUs de Full Super, Livros, alimentos para animais ou outra categoria com tarifa diferenciada?", "single_choice", ["Não, nenhum", "Sim — vou identificar quais SKUs", "Preciso confirmar"], "A tabela geral só pode ser aplicada depois de separar as categorias com custo próprio.");
   if (text.includes("fragmentad") || text.includes("ilegível") || text.includes("celula") || text.includes("célula")) add("readable_table", "Trechos da tabela", "Você consegue anexar uma versão da tabela em que todos os valores estejam completos e selecionáveis?", "single_choice", ["Sim, vou substituir o PDF", "Não, preciso revisar manualmente"], "Valores quebrados não são completados por suposição.");
   if (text.includes("casos excepcionais") || text.includes("localização do comprador")) add("exception_scope", "Envios com desconto excepcional", "Há pedidos desta auditoria sujeitos a descontos excepcionais por localização?", "single_choice", ["Não", "Sim, e vou anexar a regra correspondente", "Não sei"], "Pedidos afetados precisam da regra complementar antes do cálculo.");
   return questions;
@@ -538,12 +547,16 @@ export const clarificationQuestions = ambiguities => {
 
 export const unansweredClarificationQuestions = (questions, answers) => {
   const supplied = answers && typeof answers === "object" ? answers : {};
+  const isResolved = value => {
+    const normalized = String(value || "").trim().toLowerCase();
+    return Boolean(normalized) && !["não sei", "nao sei", "preciso confirmar", "não, preciso revisar manualmente", "nao, preciso revisar manualmente"].includes(normalized);
+  };
   return questions.filter(question => {
     if (question.answer_type === "date_range") {
       return !String(supplied[`${question.id}_start`] || "").trim() ||
         !String(supplied[`${question.id}_end`] || "").trim();
     }
-    return !String(supplied[question.id] || "").trim();
+    return !isResolved(supplied[question.id]);
   });
 };
 

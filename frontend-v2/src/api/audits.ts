@@ -47,7 +47,7 @@ export const auditsApi = {
       await request(
         "/api/v1/audits/" + encodeURIComponent(draft.audit_id) + "/sources",
         AuditSourceSchema,
-        { method: "POST", body: form, timeout: 180_000 },
+        { method: "POST", body: form, timeout: 300_000 },
       );
     }
     try {
