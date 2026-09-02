@@ -1009,6 +1009,54 @@ td small {
 .compact-list { margin: 10px 0 0; padding: 0; }
 .compact-list:empty { display: none; }
 .compact-list > div { padding: 10px 0; }
+.audit-scope-row {
+  display: grid;
+  grid-template-columns: minmax(300px, 1.55fr) repeat(3, minmax(150px, .7fr));
+  align-items: start;
+  gap: 12px;
+  padding: 3px 18px 18px;
+}
+.scope-field { position: relative; display: grid; min-width: 0; gap: 7px; }
+.scope-field > span { color: #9aa6b3; font-size: 10px; font-weight: 600; }
+.scope-field > select,
+.date-control,
+.origin-select > summary {
+  min-height: 42px;
+  border: 1px solid #2a3643;
+  border-radius: 9px;
+  color: #cbd3db;
+  background: #0b1016;
+}
+.scope-field > select { width: 100%; padding: 0 10px; }
+.date-control { display: flex; align-items: center; gap: 8px; padding: 0 10px; }
+.date-control svg { flex: 0 0 15px; width: 15px; color: #718091; }
+.date-control input { width: 100%; min-width: 0; border: 0; outline: 0; color: #cbd3db; background: transparent; }
+.origin-select { position: relative; }
+.origin-select > summary { display: flex; align-items: center; gap: 9px; padding: 0 12px; cursor: pointer; list-style: none; }
+.origin-select > summary::-webkit-details-marker { display: none; }
+.origin-select > summary::after { content: "⌄"; margin-left: auto; color: var(--muted); font-size: 15px; }
+.origin-select[open] > summary { border-color: #4e9777; box-shadow: 0 0 0 3px rgba(123,240,179,.06); }
+.origin-select > summary svg { width: 16px; color: var(--accent); }
+.origin-menu { position: absolute; z-index: 20; top: calc(100% + 7px); left: 0; width: min(590px, calc(100vw - 80px)); padding: 12px; border: 1px solid #334250; border-radius: 11px; background: #111820; box-shadow: 0 18px 50px #000a; }
+.selected-origins { display: flex; flex-wrap: wrap; gap: 5px; min-height: 22px; }
+.selected-origins > span { display: inline-flex; align-items: center; gap: 5px; padding: 4px 6px 4px 8px; border-radius: 999px; color: var(--accent); background: #11231c; font-size: 9px; font-weight: 700; }
+.selected-origins button { display: grid; padding: 0; border: 0; place-items: center; color: inherit; background: transparent; cursor: pointer; }
+.selected-origins svg { width: 11px; height: 11px; }
+.unified-upload { padding: 16px 18px 18px; }
+.dropzone.unified { width: 100%; min-height: 172px; margin: 0; border-radius: 11px; }
+.dropzone.unified > svg { width: 30px; height: 30px; }
+.dropzone.unified > b { font-size: 13px; }
+.upload-actions { display: flex; gap: 8px; margin-top: 8px; }
+.upload-actions button { display: inline-flex; align-items: center; gap: 6px; padding: 8px 11px; border: 1px solid #30404d; border-radius: 8px; color: #cbd5df; background: #141c25; font-size: 10px; font-weight: 700; cursor: pointer; }
+.upload-actions button:last-child { color: var(--accent); border-color: #315443; background: #102018; }
+.upload-actions svg { width: 14px; height: 14px; }
+.unified-file-lists { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.file-chip { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px 11px; border: 1px solid var(--line); border-radius: 9px; background: #0c1218; }
+.file-chip > svg { flex: 0 0 18px; width: 18px; color: var(--accent); }
+.file-chip > div { min-width: 0; flex: 1; }
+.file-chip b { display: block; overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.file-chip small { color: var(--muted); font-size: 8px; }
+.file-chip.rule { border-color: #2d493d; }
 .sr-only {
   position: absolute;
   width: 1px;
@@ -1335,6 +1383,8 @@ td small {
   .audit-upload-grid {
     grid-template-columns: 1fr;
   }
+  .audit-scope-row { grid-template-columns: 1fr 1fr; }
+  .origin-field { grid-column: 1 / -1; }
   .content {
     padding: 24px 20px;
   }
@@ -1429,6 +1479,10 @@ td small {
   .origin-options {
     grid-template-columns: repeat(2, 1fr);
   }
+  .audit-scope-row,
+  .unified-file-lists { grid-template-columns: 1fr; }
+  .origin-field { grid-column: auto; }
+  .origin-menu { width: calc(100vw - 60px); }
   .submit-row {
     position: sticky;
     bottom: 0;
@@ -1464,6 +1518,7 @@ td small {
   .custom-origin {
     flex-direction: column;
   }
+  .upload-actions { flex-direction: column; }
   .upload-header-note {
     display: none;
   }

@@ -1,4 +1,4 @@
-import { CalendarRange, FileCheck2, FileSpreadsheet, FileText, PackageSearch, Play, Plus, Store, Truck, UploadCloud, X } from "lucide-react";
+import { CalendarRange, FileCheck2, FileSpreadsheet, FileText, Play, Plus, Store, Truck, UploadCloud, X } from "lucide-react";
 import { DragEvent, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { AuditInput } from "../../contracts/types";
@@ -27,7 +27,7 @@ export function NewAudit() {
   const [periodEnd, setPeriodEnd] = useState("");
   const dataInput = useRef<HTMLInputElement>(null);
   const ruleInput = useRef<HTMLInputElement>(null);
-  const add = (kind: "data" | "rule", list: FileList | null) => {
+  const add = (kind: "data" | "rule", list: FileList | File[] | null) => {
     const setter = kind === "data" ? setDataFiles : setRuleFiles;
     setter((old) => [
       ...old,
@@ -36,9 +36,13 @@ export function NewAudit() {
       ),
     ]);
   };
-  const drop = (kind: "data" | "rule", e: DragEvent) => {
+  const dropMixed = (e: DragEvent) => {
     e.preventDefault();
-    add(kind, e.dataTransfer.files);
+    const files = Array.from(e.dataTransfer.files);
+    const data = files.filter((file) => !file.name.toLowerCase().endsWith(".pdf"));
+    const rules = files.filter((file) => file.name.toLowerCase().endsWith(".pdf"));
+    if (data.length) add("data", data);
+    if (rules.length) add("rule", rules);
   };
   const knownChannels = ["Mercado Livre", "Shopee", "Amazon", "Magalu", "B2B / atacado", "Transporte avulso"];
   const toggleChannel = (channel: string) => setChannels((current) => current.includes(channel) ? current.filter((value) => value !== channel) : [...current, channel]);
@@ -138,30 +142,11 @@ export function NewAudit() {
             </label>
           </div>
 
-          <div className="audit-scope-builder">
-            <section className="origin-builder">
-              <header><div className="scope-icon"><Store /></div><div><h4>Origens incluídas</h4><p>Selecione todos os canais que participarão da conciliação.</p></div></header>
-              <div className="origin-options">{knownChannels.map((channel) => <label key={channel} className={channels.includes(channel) ? "selected" : ""}><input aria-label={channel} type="checkbox" checked={channels.includes(channel)} onChange={() => toggleChannel(channel)} /><span>{channel === "Transporte avulso" ? <Truck /> : <Store />}{channel}</span></label>)}</div>
-              <div className="custom-origin"><input aria-label="Outra origem" value={customChannel} onChange={(event) => setCustomChannel(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCustomChannel(); } }} placeholder="Outra origem, marketplace ou operação..." /><button type="button" className="button" onClick={addCustomChannel}><Plus /> Adicionar</button></div>
-              {!!channels.filter((channel) => !knownChannels.includes(channel)).length && <div className="custom-origin-list">{channels.filter((channel) => !knownChannels.includes(channel)).map((channel) => <span key={channel}>{channel}<button type="button" aria-label={`Remover origem ${channel}`} onClick={() => toggleChannel(channel)}><X /></button></span>)}</div>}
-            </section>
-
-            <section className="period-builder">
-              <header><div className="scope-icon"><CalendarRange /></div><div><h4>Período auditado</h4><p>Defina a competência dos arquivos enviados.</p></div></header>
-              <label>
-                <span>Atalho</span>
-                <select value={periodPreset} onChange={(e) => applyPeriodPreset(e.target.value)}>
-                  <option value="custom">Escolher datas</option>
-                  <option value="30d">Últimos 30 dias</option>
-                  <option value="month">Este mês</option>
-                  <option value="year">Este ano</option>
-                </select>
-              </label>
-              <div className="period-dates">
-                <label><span>Início</span><input aria-label="Início do período" name="periodStart" type="date" value={periodStart} onChange={(e) => { setPeriodPreset("custom"); setPeriodStart(e.target.value); }} required /></label>
-                <label><span>Fim</span><input aria-label="Fim do período" name="periodEnd" type="date" value={periodEnd} onChange={(e) => { setPeriodPreset("custom"); setPeriodEnd(e.target.value); }} required /></label>
-              </div>
-            </section>
+          <div className="audit-scope-row">
+            <label className="scope-field origin-field"><span>Origens da conciliação</span><details className="origin-select"><summary><Store /><span>{channels.length ? `${channels.length} origem(ns) selecionada(s)` : "Selecionar marketplaces e operações"}</span></summary><div className="origin-menu"><div className="origin-options">{knownChannels.map((channel) => <label key={channel} className={channels.includes(channel) ? "selected" : ""}><input aria-label={channel} type="checkbox" checked={channels.includes(channel)} onChange={() => toggleChannel(channel)} /><span>{channel === "Transporte avulso" ? <Truck /> : <Store />}{channel}</span></label>)}</div><div className="custom-origin"><input aria-label="Outra origem" value={customChannel} onChange={(event) => setCustomChannel(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCustomChannel(); } }} placeholder="Outra origem ou marketplace..." /><button type="button" className="button" onClick={addCustomChannel}><Plus /> Adicionar</button></div></div></details>{!!channels.length && <div className="selected-origins">{channels.map((channel) => <span key={channel}>{channel}<button type="button" aria-label={`Remover origem ${channel}`} onClick={() => toggleChannel(channel)}><X /></button></span>)}</div>}</label>
+            <label className="scope-field"><span>Período</span><select value={periodPreset} onChange={(e) => applyPeriodPreset(e.target.value)}><option value="custom">Datas personalizadas</option><option value="30d">Últimos 30 dias</option><option value="month">Este mês</option><option value="year">Este ano</option></select></label>
+            <label className="scope-field"><span>Data inicial</span><div className="date-control"><CalendarRange /><input aria-label="Início do período" name="periodStart" type="date" value={periodStart} onChange={(e) => { setPeriodPreset("custom"); setPeriodStart(e.target.value); }} required /></div></label>
+            <label className="scope-field"><span>Data final</span><div className="date-control"><CalendarRange /><input aria-label="Fim do período" name="periodEnd" type="date" value={periodEnd} onChange={(e) => { setPeriodPreset("custom"); setPeriodEnd(e.target.value); }} required /></div></label>
           </div>
         </section>
         <section className="panel form-section">
@@ -172,10 +157,7 @@ export function NewAudit() {
             </div>
             <span className="upload-header-note"><FileCheck2 /> Enviados juntos ao mesmo dossiê</span>
           </header>
-          <div className="audit-upload-grid">
-            <section className="upload-card data-upload"><header><FileSpreadsheet /><div><h4>Planilhas para conciliar</h4><p>Pedidos, cobranças, vendas, envios e cadastros.</p></div><span>Obrigatório</span></header><button type="button" className="dropzone compact" onClick={() => dataInput.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => drop("data", e)}><UploadCloud /><b>Adicionar planilhas</b><span>CSV, XLS ou XLSX · até 25 MB por arquivo</span></button><input ref={dataInput} className="sr-only" type="file" multiple accept=".csv,.xlsx,.xls" onChange={(e) => add("data", e.target.files)} /><div className="file-list compact-list">{dataFiles.map((file, index) => <div key={file.name + file.size}><FileSpreadsheet /><div><b>{file.name}</b><small>{(file.size / 1024 / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} MB</small></div><button type="button" className="icon" aria-label={"Remover " + file.name} onClick={() => setDataFiles(dataFiles.filter((_, i) => i !== index))}><X /></button></div>)}</div></section>
-            <section className="upload-card rule-upload"><header><FileText /><div><h4>Regras e contratos</h4><p>Tabelas tarifárias, contratos e regras específicas.</p></div><span>Recomendado</span></header><button type="button" className="dropzone compact" onClick={() => ruleInput.current?.click()} onDragOver={(e) => e.preventDefault()} onDrop={(e) => drop("rule", e)}><UploadCloud /><b>Adicionar PDFs de regras</b><span>O Worker interpreta e vincula as regras à auditoria</span></button><input ref={ruleInput} className="sr-only" type="file" multiple accept=".pdf" onChange={(e) => add("rule", e.target.files)} /><div className="file-list compact-list">{ruleFiles.map((file, index) => <div key={file.name + file.size}><FileText /><div><b>{file.name}</b><small>{(file.size / 1024 / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} MB · regra</small></div><button type="button" className="icon" aria-label={"Remover " + file.name} onClick={() => setRuleFiles(ruleFiles.filter((_, i) => i !== index))}><X /></button></div>)}</div></section>
-          </div>
+          <div className="unified-upload"><div className="dropzone unified" onDragOver={(e) => e.preventDefault()} onDrop={dropMixed}><UploadCloud /><b>Arraste todos os arquivos da auditoria aqui</b><span>Planilhas de pedidos, vendas, cobranças e envios — CSV, XLS ou XLSX</span><div className="upload-actions"><button type="button" onClick={() => dataInput.current?.click()}><FileSpreadsheet /> Selecionar planilhas</button><button type="button" onClick={() => ruleInput.current?.click()}><FileText /> Adicionar regras em PDF</button></div></div><input ref={dataInput} className="sr-only" type="file" multiple accept=".csv,.xlsx,.xls" onChange={(e) => add("data", e.target.files)} /><input ref={ruleInput} className="sr-only" type="file" multiple accept=".pdf" onChange={(e) => add("rule", e.target.files)} /><div className="unified-file-lists">{dataFiles.map((file, index) => <div key={file.name + file.size} className="file-chip"><FileSpreadsheet /><div><b>{file.name}</b><small>Planilha · {(file.size / 1024 / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} MB</small></div><button type="button" className="icon" aria-label={"Remover " + file.name} onClick={() => setDataFiles(dataFiles.filter((_, i) => i !== index))}><X /></button></div>)}{ruleFiles.map((file, index) => <div key={file.name + file.size} className="file-chip rule"><FileText /><div><b>{file.name}</b><small>Regra / contrato · {(file.size / 1024 / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} MB</small></div><button type="button" className="icon" aria-label={"Remover " + file.name} onClick={() => setRuleFiles(ruleFiles.filter((_, i) => i !== index))}><X /></button></div>)}</div></div>
         </section>
         {state === "PROCESSING" && (
           <section className="panel processing">

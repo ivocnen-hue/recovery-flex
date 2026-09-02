@@ -89,7 +89,7 @@ describe("Fase 1", () => {
     renderPage(<NewAudit />);
     await user.click(screen.getByLabelText("Mercado Livre"));
     await user.click(screen.getByLabelText("Shopee"));
-    await user.selectOptions(screen.getByDisplayValue("Escolher datas"), "30d");
+    await user.selectOptions(screen.getByDisplayValue("Datas personalizadas"), "30d");
     expect(screen.getByLabelText("Mercado Livre")).toBeChecked();
     expect(screen.getByLabelText("Shopee")).toBeChecked();
     expect(screen.getByLabelText("Início do período")).not.toHaveValue("");
