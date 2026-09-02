@@ -978,7 +978,7 @@ export function sourceMappingKey(rawSource, sellerId) {
 // RULE PARSER
 // ============================================================
 
-async function parseRuleSourceWithAI(
+export async function parseRuleSourceWithAI(
   env,
   source,
   sellerId
@@ -1114,8 +1114,13 @@ per_unit
 percentage
 
 Se a fonte tiver regra mais complexa,
-como uma matriz ainda não executável,
-NÃO invente cálculo.
+como uma tabela ou matriz tarifária, expanda cada linha/faixa
+determinística em uma regra separada usando as condições acima.
+Converta unidades explicitamente (kg para g; m para cm), sem arredondar.
+Preserve exceções como regras de maior prioridade.
+Se uma célula, cabeçalho, unidade, vigência, escopo ou valor necessário
+não estiver legível, ou se faixas se sobrepuserem com valores conflitantes,
+NÃO invente cálculo e registre em ambiguities.
 
 Registre em ambiguities.
 
@@ -1231,12 +1236,55 @@ Retorne SOMENTE JSON válido:
       ? parsed.rule_set.rules
       : [];
 
+  const allowedFields = new Set([
+    "seller_id", "marketplace", "logistics_mode", "carrier", "quantity",
+    "sale_amount", "weight_g", "height_cm", "width_cm", "length_cm",
+    "max_dimension_cm", "volume_cm3", "sku", "date",
+  ]);
+  const allowedOps = new Set(["eq", "neq", "gt", "gte", "lt", "lte", "between", "in"]);
+  const allowedCalculations = new Set(["fixed", "per_unit", "percentage"]);
+  const numericFields = new Set([
+    "quantity", "sale_amount", "weight_g", "height_cm", "width_cm",
+    "length_cm", "max_dimension_cm", "volume_cm3",
+  ]);
+  const validationAmbiguities = [];
+  parsed.rule_set.rules = parsed.rule_set.rules.filter((rule, index) => {
+    const conditions = Array.isArray(rule?.conditions) ? rule.conditions : [];
+    const calculation = rule?.calculation;
+    const validConditions = conditions.every(condition => {
+      if (!allowedFields.has(condition?.field) || !allowedOps.has(condition?.op)) return false;
+      if (condition.op === "between") {
+        return condition.min !== null && condition.min !== undefined && condition.min !== "" &&
+          condition.max !== null && condition.max !== undefined && condition.max !== "" &&
+          Number.isFinite(Number(condition.min)) && Number.isFinite(Number(condition.max)) &&
+          Number(condition.min) <= Number(condition.max);
+      }
+      if (condition.op === "in") return Array.isArray(condition.value) && condition.value.length > 0;
+      if (condition.value === null || condition.value === undefined || condition.value === "") return false;
+      return !numericFields.has(condition.field) || Number.isFinite(Number(condition.value));
+    });
+    const validCalculation = allowedCalculations.has(calculation?.type) && (
+      calculation.type === "percentage"
+        ? Number.isFinite(Number(calculation.rate)) && allowedFields.has(calculation.base_field || "sale_amount")
+        : Number.isFinite(Number(calculation.amount))
+    );
+    if (!validConditions || !validCalculation) {
+      validationAmbiguities.push(`Regra ${rule?.id || index + 1} fora do contrato executável seguro.`);
+      return false;
+    }
+    rule.id = String(rule.id || `regra_${index + 1}`);
+    rule.priority = Number.isFinite(Number(rule.priority)) ? Number(rule.priority) : 0;
+    rule.source_reference = String(rule.source_reference || sourceName);
+    return true;
+  });
+
   parsed.ambiguities =
     Array.isArray(
       parsed.ambiguities
     )
       ? parsed.ambiguities
       : [];
+  parsed.ambiguities.push(...validationAmbiguities);
 
   parsed.warnings =
     Array.isArray(
@@ -3286,7 +3334,8 @@ export default {
           {
             json,
             auditFull,
-            auditFullInput
+            auditFullInput,
+            parseRuleSourceWithAI
           }
         );
 

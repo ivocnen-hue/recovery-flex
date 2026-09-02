@@ -636,13 +636,27 @@ async function createDraft(request, env, json) {
   return json({ ok: true, schema_version: SCHEMA_VERSION, audit_id: auditId, status: "UPLOADING" }, 201);
 }
 
-async function uploadSource(request, env, json, auditId) {
+async function uploadSource(request, env, json, auditId, parseRuleSource) {
   if (!env.SOURCES) return apiError(json, 503, "SOURCE_STORAGE_UNAVAILABLE", "Armazenamento de arquivos indisponível.");
-  const audit = await env.DB.prepare("SELECT audit_id FROM audits WHERE audit_id = ?").bind(auditId).first();
+  const audit = await env.DB.prepare("SELECT audit_id, seller FROM audits WHERE audit_id = ?").bind(auditId).first();
   if (!audit) return apiError(json, 404, "AUDIT_NOT_FOUND", "Auditoria não encontrada.");
   let parsed;
   try {
     parsed = await parseSingleAuditSource(request);
+    if (parsed.kind === "rule" && parsed.ruleSources?.length) {
+      if (typeof parseRuleSource !== "function") throw new Error("Interpretador de regras indisponível.");
+      for (const source of parsed.ruleSources) {
+        const interpreted = await parseRuleSource(env, source, nullableText(audit.seller));
+        const ambiguities = Array.isArray(interpreted?.ambiguities) ? interpreted.ambiguities.filter(Boolean) : [];
+        if (ambiguities.length) {
+          throw new Error(`O PDF ${parsed.file.name} contém regras ambíguas: ${ambiguities.join("; ")}`);
+        }
+        if (!interpreted?.rule_set?.rules?.length) {
+          throw new Error(`Nenhuma regra financeira executável foi identificada no PDF ${parsed.file.name}.`);
+        }
+        parsed.ruleSets.push(interpreted.rule_set);
+      }
+    }
   } catch (error) {
     return apiError(json, 400, "INVALID_UPLOAD", error instanceof Error ? error.message : "Envio inválido.");
   }
@@ -803,7 +817,7 @@ async function runStagedAudit(request, env, json, auditFull, auditFullInput, aud
 
 export async function handleV1Request(request, env, url, dependencies) {
   if (!url.pathname.startsWith("/api/v1/audits")) return null;
-  const { json, auditFull, auditFullInput } = dependencies;
+  const { json, auditFull, auditFullInput, parseRuleSourceWithAI } = dependencies;
   if (!env.DB) {
     return apiError(json, 503, "STORAGE_UNAVAILABLE", "Armazenamento de homologação indisponível.");
   }
@@ -835,7 +849,7 @@ export async function handleV1Request(request, env, url, dependencies) {
   if (request.method === "GET" && resource === "findings") return getFindings(env, json, auditId);
   if (request.method === "GET" && resource === "evidence") return getEvidence(env, json, auditId);
   if (request.method === "GET" && resource === "dossier.xlsx") return downloadDossier(env, json, auditId);
-  if (request.method === "POST" && resource === "sources") return uploadSource(request, env, json, auditId);
+  if (request.method === "POST" && resource === "sources") return uploadSource(request, env, json, auditId, parseRuleSourceWithAI);
   if (request.method === "POST" && resource === "run") {
     return runStagedAudit(request, env, json, auditFull, auditFullInput, auditId);
   }

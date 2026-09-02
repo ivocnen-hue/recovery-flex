@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { extractTextItems } from "unpdf";
 import { parseLargeXlsx } from "./xlsx-streaming.js";
 
 export const UPLOAD_LIMITS = Object.freeze({
@@ -104,11 +105,55 @@ export const csvSources = async (file, context) => {
   return parsed ? [{ filename: file.name, sheet: null, context, ...parsed }] : [];
 };
 
-const parseRulePdf = async file => {
+const MAX_RULE_PDF_PAGES = 100;
+const MAX_RULE_TEXT_CHARS = 300_000;
+
+const textFromPositionedPdfItems = pages => pages.map((items, pageIndex) => {
+  const lines = [];
+  for (const item of items) {
+    const text = String(item?.str || "").trim();
+    if (!text) continue;
+    let line = lines.find(candidate => Math.abs(candidate.y - Number(item.y || 0)) <= 2);
+    if (!line) {
+      line = { y: Number(item.y || 0), cells: [] };
+      lines.push(line);
+    }
+    line.cells.push({ x: Number(item.x || 0), text });
+  }
+  lines.sort((a, b) => b.y - a.y);
+  return [`--- Página ${pageIndex + 1} ---`, ...lines.map(line =>
+    line.cells.sort((a, b) => a.x - b.x).map(cell => cell.text).join("\t"))].join("\n");
+}).join("\n\n");
+
+const parseRulePdf = async (file, context) => {
   const bytes = new Uint8Array(await file.arrayBuffer());
   const raw = new TextDecoder("latin1").decode(bytes);
   const marker = raw.match(/RECOVERY_RULE_B64_([A-Za-z0-9+/=]+)/)?.[1];
-  if (!marker) throw new Error(`O PDF ${file.name} não contém uma regra Recovery estruturada.`);
+  if (!marker) {
+    let extracted;
+    try {
+      extracted = await extractTextItems(bytes);
+    } catch {
+      throw new Error(`Não foi possível ler o texto do PDF ${file.name}. Verifique se ele não está protegido ou se é apenas uma imagem digitalizada.`);
+    }
+    const content = textFromPositionedPdfItems(extracted?.items || []).replace(/\u0000/g, "").trim();
+    if (!content) {
+      throw new Error(`O PDF ${file.name} não possui texto pesquisável. Envie uma versão com OCR ou texto selecionável.`);
+    }
+    if (Number(extracted?.totalPages || 0) > MAX_RULE_PDF_PAGES || content.length > MAX_RULE_TEXT_CHARS) {
+      throw new Error(`O PDF ${file.name} excede o limite seguro de 100 páginas ou 300.000 caracteres.`);
+    }
+    return {
+      ruleSets: [],
+      ruleSources: [{
+        source_name: file.name,
+        source_type: "pdf",
+        content,
+        total_pages: Number(extracted?.totalPages || 0),
+        context,
+      }],
+    };
+  }
   let rule;
   try {
     const decoded = Uint8Array.from(atob(marker), character => character.charCodeAt(0));
@@ -128,7 +173,7 @@ const parseRulePdf = async file => {
   ) {
     throw new Error(`A regra do PDF ${file.name} não atende ao contrato seguro do Recovery.`);
   }
-  return [{
+  return { ruleSources: [], ruleSets: [{
     name: `Regra anexada: ${file.name}`,
     version: String(rule.version || "1.0"),
     seller_id: null,
@@ -142,7 +187,7 @@ const parseRulePdf = async file => {
       calculation: { type: "fixed", amount: Number(rule.calculation.amount) },
       source_reference: file.name,
     }],
-  }];
+  }] };
 };
 
 export async function parseAuditUpload(request) {
@@ -216,9 +261,10 @@ export async function parseSingleAuditSource(request) {
     carrier: String(form.get("carrier") || ""),
   };
   if (extension === "pdf") {
-    return { file, kind: "rule", sources: [], ruleSets: await parseRulePdf(file) };
+    const parsedRule = await parseRulePdf(file, context);
+    return { file, kind: "rule", sources: [], ...parsedRule };
   }
   const sources = extension === "csv" ? await csvSources(file, context) : await spreadsheetSources(file, context);
   if (!sources.length) throw new Error("Nenhuma aba ou linha utilizável foi encontrada.");
-  return { file, kind: "data", sources, ruleSets: [] };
+  return { file, kind: "data", sources, ruleSets: [], ruleSources: [] };
 }
