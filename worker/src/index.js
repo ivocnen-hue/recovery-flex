@@ -1252,6 +1252,8 @@ Retorne SOMENTE JSON válido:
     "quantity", "sale_amount", "weight_g", "height_cm", "width_cm",
     "length_cm", "max_dimension_cm", "volume_cm3",
   ]);
+  const validDate = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || "")) &&
+    Number.isFinite(Date.parse(`${value}T00:00:00Z`));
   const validationAmbiguities = [];
   parsed.rule_set.rules = parsed.rule_set.rules.filter((rule, index) => {
     const conditions = Array.isArray(rule?.conditions) ? rule.conditions : [];
@@ -1259,6 +1261,10 @@ Retorne SOMENTE JSON válido:
     const validConditions = conditions.every(condition => {
       if (!allowedFields.has(condition?.field) || !allowedOps.has(condition?.op)) return false;
       if (condition.op === "between") {
+        if (condition.field === "date") {
+          return validDate(condition.min) && validDate(condition.max) &&
+            String(condition.min) <= String(condition.max);
+        }
         return condition.min !== null && condition.min !== undefined && condition.min !== "" &&
           condition.max !== null && condition.max !== undefined && condition.max !== "" &&
           Number.isFinite(Number(condition.min)) && Number.isFinite(Number(condition.max)) &&
@@ -1266,6 +1272,9 @@ Retorne SOMENTE JSON válido:
       }
       if (condition.op === "in") return Array.isArray(condition.value) && condition.value.length > 0;
       if (condition.value === null || condition.value === undefined || condition.value === "") return false;
+      if (condition.field === "date" && ["gt", "gte", "lt", "lte"].includes(condition.op)) {
+        return validDate(condition.value);
+      }
       return !numericFields.has(condition.field) || Number.isFinite(Number(condition.value));
     });
     const validCalculation = allowedCalculations.has(calculation?.type) && (
@@ -2033,10 +2042,9 @@ function ruleConditionMatches(
   row,
   condition
 ) {
-  const value =
-    row?.[
-      condition?.field
-    ];
+  const value = condition?.field === "date"
+    ? row?.date || row?.event_date
+    : row?.[condition?.field];
 
   const target =
     condition?.value;
@@ -2057,30 +2065,40 @@ function ruleConditionMatches(
       );
 
     case "gt":
+      if (condition?.field === "date") return String(value || "") > String(target || "");
       return (
         safeNumber(value) >
         safeNumber(target)
       );
 
     case "gte":
+      if (condition?.field === "date") return String(value || "") >= String(target || "");
       return (
         safeNumber(value) >=
         safeNumber(target)
       );
 
     case "lt":
+      if (condition?.field === "date") return String(value || "") < String(target || "");
       return (
         safeNumber(value) <
         safeNumber(target)
       );
 
     case "lte":
+      if (condition?.field === "date") return String(value || "") <= String(target || "");
       return (
         safeNumber(value) <=
         safeNumber(target)
       );
 
     case "between": {
+      if (condition?.field === "date") {
+        const current = String(value || "");
+        const min = String(condition.min || "");
+        const max = String(condition.max || "");
+        return /^\d{4}-\d{2}-\d{2}$/.test(current) && current >= min && current <= max;
+      }
       const current =
         safeNumber(value);
 

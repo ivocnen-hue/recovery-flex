@@ -699,11 +699,16 @@ async function uploadSource(request, env, json, auditId, parseRuleSource) {
         }
         const interpreted = await parseRuleSource(env, source, nullableText(audit.seller));
         const ambiguities = Array.isArray(interpreted?.ambiguities) ? interpreted.ambiguities.filter(Boolean) : [];
-        if (ambiguities.length) return apiError(json, 422, "RULE_CLARIFICATION_REQUIRED", `Precisamos de ${clarificationQuestions(ambiguities).length} resposta(s) para interpretar ${parsed.file.name} com segurança.`, {
-          filename: parsed.file.name,
-          required_inputs: clarificationQuestions(ambiguities),
-          ambiguities,
-        });
+        if (ambiguities.length) {
+          const questions = clarificationQuestions(ambiguities);
+          return apiError(json, 422, questions.length ? "RULE_CLARIFICATION_REQUIRED" : "RULE_INTERPRETATION_UNRESOLVED", questions.length
+            ? `Precisamos de ${questions.length} resposta(s) para interpretar ${parsed.file.name} com segurança.`
+            : `O PDF ${parsed.file.name} foi lido, mas gerou regras que ainda não são executáveis com segurança.`, {
+            filename: parsed.file.name,
+            required_inputs: questions,
+            ambiguities,
+          });
+        }
         if (!interpreted?.rule_set?.rules?.length) {
           throw new Error(`Nenhuma regra financeira executável foi identificada no PDF ${parsed.file.name}.`);
         }

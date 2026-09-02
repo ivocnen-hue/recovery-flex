@@ -41,4 +41,26 @@ describe("PDF rule interpretation", () => {
     expect(parsed.rule_set.rules).toEqual([]);
     expect(parsed.ambiguities[0]).toContain("fora do contrato executável seguro");
   });
+
+  it("accepts deterministic ISO date ranges produced from an answered validity question", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => aiResponse({
+      rule_set: {
+        name: "Tabela vigente",
+        rules: [{
+          id: "vigencia_2026",
+          conditions: [{ field: "date", op: "between", min: "2026-07-01", max: "2026-09-30" }],
+          calculation: { type: "fixed", amount: 12 },
+        }],
+      },
+      ambiguities: [],
+      warnings: [],
+    })));
+    const parsed = await parseRuleSourceWithAI({ OPENAI_API_KEY: "test" }, {
+      source_name: "tabela.pdf",
+      content: "Tabela de fretes",
+      context: { rule_clarifications: { validity_start: "2026-07-01", validity_end: "2026-09-30" } },
+    }, "seller-1");
+    expect(parsed.ambiguities).toEqual([]);
+    expect(parsed.rule_set.rules).toHaveLength(1);
+  });
 });
