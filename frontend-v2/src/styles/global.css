@@ -972,7 +972,7 @@ td small {
 .audit-context-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .new-audit-form .form-section:first-child { position: relative; z-index: 10; overflow: visible; }
 .new-audit-form .audit-context-grid input,
-.new-audit-form .audit-context-grid select { height: 42px; }
+.new-audit-form .audit-context-grid select { height: 38px; border-radius: 7px; }
 .audit-scope-builder { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(320px, .75fr); gap: 20px; padding: 4px 18px 18px; }
 .origin-builder, .period-builder, .upload-card { min-width: 0; padding: 0; border: 0; background: transparent; }
 .origin-builder > header, .period-builder > header, .upload-card > header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
@@ -981,14 +981,16 @@ td small {
 .scope-icon { display: grid; flex: 0 0 32px; width: 32px; height: 32px; place-items: center; border-radius: 9px; color: var(--accent); background: var(--accent2); }
 .scope-icon svg { width: 16px; height: 16px; padding: 0; }
 .upload-card > header > svg { flex: 0 0 32px; width: 32px; height: 32px; padding: 8px; border-radius: 9px; color: var(--accent); background: var(--accent2); }
-.origin-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.origin-options { display: grid; grid-template-columns: 1fr; gap: 5px; }
 .origin-options label { position: relative; cursor: pointer; }
 .origin-options input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-.origin-options label > span { display: flex; min-height: 38px; align-items: center; gap: 8px; padding: 0 11px; border: 1px solid #2a3643; border-radius: 9px; color: #b9c3cd; background: #0b1118; font-size: 10px; font-weight: 700; transition: .16s ease; }
+.origin-options label > span { display: flex; min-height: 48px; align-items: center; gap: 9px; padding: 5px 10px; border: 1px solid transparent; border-radius: 7px; color: #b9c3cd; background: #0c1218; font-size: 10px; font-weight: 700; transition: .16s ease; }
 .origin-options label > span::before { content: ""; flex: 0 0 15px; width: 15px; height: 15px; border: 1px solid #5c6b7a; border-radius: 4px; background: #090e14; box-shadow: inset 0 0 0 2px #090e14; }
-.origin-options label > span svg { width: 15px; height: 15px; color: var(--muted); }
+.origin-options label > span svg { width: 15px; height: 15px; color: inherit; }
+.origin-options label em { display: grid; gap: 2px; font-style: normal; }
+.origin-options label em small { color: #6f7d8b; font-size: 8px; font-weight: 500; }
 .origin-options label:hover > span { border-color: #4b6f60; background: #0e1715; }
-.origin-options label.selected > span { border-color: #4e9777; color: var(--accent); background: #11231c; box-shadow: inset 3px 0 0 var(--accent); }
+.origin-options label.selected > span { border-color: #3b705a; color: var(--accent); background: #102019; box-shadow: none; }
 .origin-options label.selected > span::before { border-color: var(--accent); background: var(--accent); box-shadow: inset 0 0 0 3px #11231c; }
 .origin-options label.selected > span svg { color: var(--accent); }
 .custom-origin { display: flex; gap: 8px; margin-top: 10px; }
@@ -1026,9 +1028,9 @@ td small {
 .scope-field > select,
 .date-control,
 .origin-select > summary {
-  min-height: 42px;
+  min-height: 38px;
   border: 1px solid #2a3643;
-  border-radius: 9px;
+  border-radius: 7px;
   color: #cbd3db;
   background: #0b1016;
 }
@@ -1042,13 +1044,22 @@ td small {
 .origin-select > summary::after { content: "⌄"; margin-left: auto; color: var(--muted); font-size: 15px; }
 .origin-select[open] > summary { border-color: #4e9777; box-shadow: 0 0 0 3px rgba(123,240,179,.06); }
 .origin-select > summary svg { width: 16px; color: var(--accent); }
-.origin-menu { position: absolute; z-index: 20; top: calc(100% + 7px); left: 0; width: min(590px, calc(100vw - 80px)); padding: 12px; border: 1px solid #334250; border-radius: 11px; background: #111820; box-shadow: 0 18px 50px #000a; }
+.origin-menu { position: absolute; z-index: 20; top: calc(100% + 7px); left: 0; width: min(390px, calc(100vw - 80px)); padding: 9px; border: 1px solid #334250; border-radius: 9px; background: #111820; box-shadow: 0 18px 50px #000a; }
+.origin-menu > p { margin: 2px 3px 8px; color: #788695; font-size: 8px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+.brand-logo { position: relative; display: grid; flex: 0 0 30px; width: 30px; height: 30px; place-items: center; overflow: hidden; border-radius: 8px; font: 800 16px Manrope; }
+.brand-logo svg { width: 17px !important; height: 17px !important; }
+.brand-logo.mercado-livre { color: #25324a; background: #ffe600; }
+.brand-logo.shopee { color: white; background: #ee4d2d; }
+.brand-logo.shopee b { position: absolute; top: 9px; font-size: 8px; }
+.brand-logo.amazon { color: #111820; background: #ffad22; }
+.brand-logo.magalu { color: white; background: #0086ff; }
+.brand-logo.neutral { color: var(--accent); background: #183429; }
 .selected-origins { display: flex; flex-wrap: wrap; gap: 5px; min-height: 22px; }
 .selected-origins > span { display: inline-flex; align-items: center; gap: 5px; padding: 4px 6px 4px 8px; border-radius: 999px; color: var(--accent); background: #11231c; font-size: 9px; font-weight: 700; }
 .selected-origins button { display: grid; padding: 0; border: 0; place-items: center; color: inherit; background: transparent; cursor: pointer; }
 .selected-origins svg { width: 11px; height: 11px; }
 .unified-upload { padding: 16px 18px 18px; }
-.dropzone.unified { width: 100%; min-height: 172px; margin: 0; border-radius: 11px; }
+.dropzone.unified { width: 100%; min-height: 152px; margin: 0; border-radius: 8px; }
 .dropzone.unified > svg { width: 30px; height: 30px; }
 .dropzone.unified > b { font-size: 13px; }
 .upload-actions { display: flex; gap: 8px; margin-top: 8px; }
@@ -1482,7 +1493,7 @@ td small {
     grid-template-columns: 1fr;
   }
   .origin-options {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
   }
   .audit-scope-row,
   .unified-file-lists { grid-template-columns: 1fr; }

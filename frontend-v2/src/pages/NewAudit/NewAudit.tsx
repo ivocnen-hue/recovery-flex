@@ -1,4 +1,4 @@
-import { CalendarRange, FileCheck2, FileSpreadsheet, FileText, Play, Plus, Store, Truck, UploadCloud, X } from "lucide-react";
+import { CalendarRange, FileCheck2, FileSpreadsheet, FileText, Handshake, Package, Play, Plus, ShoppingBag, Store, Truck, UploadCloud, X } from "lucide-react";
 import { DragEvent, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { AuditInput } from "../../contracts/types";
@@ -45,6 +45,14 @@ export function NewAudit() {
     if (rules.length) add("rule", rules);
   };
   const knownChannels = ["Mercado Livre", "Shopee", "Amazon", "Magalu", "B2B / atacado", "Transporte avulso"];
+  const channelIcon = (channel: string) => {
+    if (channel === "Mercado Livre") return <span className="brand-logo mercado-livre"><Handshake /></span>;
+    if (channel === "Shopee") return <span className="brand-logo shopee"><ShoppingBag /><b>S</b></span>;
+    if (channel === "Amazon") return <span className="brand-logo amazon">a</span>;
+    if (channel === "Magalu") return <span className="brand-logo magalu">M</span>;
+    if (channel === "B2B / atacado") return <span className="brand-logo neutral"><Package /></span>;
+    return <span className="brand-logo neutral"><Truck /></span>;
+  };
   const toggleChannel = (channel: string) => setChannels((current) => current.includes(channel) ? current.filter((value) => value !== channel) : [...current, channel]);
   const addCustomChannel = () => {
     const value = customChannel.trim();
@@ -143,7 +151,7 @@ export function NewAudit() {
           </div>
 
           <div className="audit-scope-row">
-            <label className="scope-field origin-field"><span>Origens da conciliação</span><details className="origin-select"><summary><Store /><span>{channels.length ? `${channels.length} origem(ns) selecionada(s)` : "Selecionar marketplaces e operações"}</span></summary><div className="origin-menu"><div className="origin-options">{knownChannels.map((channel) => <label key={channel} className={channels.includes(channel) ? "selected" : ""}><input aria-label={channel} type="checkbox" checked={channels.includes(channel)} onChange={() => toggleChannel(channel)} /><span>{channel === "Transporte avulso" ? <Truck /> : <Store />}{channel}</span></label>)}</div><div className="custom-origin"><input aria-label="Outra origem" value={customChannel} onChange={(event) => setCustomChannel(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCustomChannel(); } }} placeholder="Outra origem ou marketplace..." /><button type="button" className="button" onClick={addCustomChannel}><Plus /> Adicionar</button></div></div></details>{!!channels.length && <div className="selected-origins">{channels.map((channel) => <span key={channel}>{channel}<button type="button" aria-label={`Remover origem ${channel}`} onClick={() => toggleChannel(channel)}><X /></button></span>)}</div>}</label>
+            <label className="scope-field origin-field"><span>Origens da conciliação</span><details className="origin-select"><summary><Store /><span>{channels.length ? `${channels.length} origem(ns) selecionada(s)` : "Selecionar marketplaces e operações"}</span></summary><div className="origin-menu"><p>Marketplaces e operações</p><div className="origin-options">{knownChannels.map((channel) => <label key={channel} className={channels.includes(channel) ? "selected" : ""}><input aria-label={channel} type="checkbox" checked={channels.includes(channel)} onChange={() => toggleChannel(channel)} /><span>{channelIcon(channel)}<em>{channel}<small>{channel === "B2B / atacado" ? "Venda corporativa" : channel === "Transporte avulso" ? "Envio fora de marketplace" : "Marketplace"}</small></em></span></label>)}</div><div className="custom-origin"><input aria-label="Outra origem" value={customChannel} onChange={(event) => setCustomChannel(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCustomChannel(); } }} placeholder="Outra origem ou marketplace..." /><button type="button" className="button" onClick={addCustomChannel}><Plus /> Adicionar</button></div></div></details>{!!channels.length && <div className="selected-origins">{channels.map((channel) => <span key={channel}>{channel}<button type="button" aria-label={`Remover origem ${channel}`} onClick={() => toggleChannel(channel)}><X /></button></span>)}</div>}</label>
             <label className="scope-field"><span>Período</span><select value={periodPreset} onChange={(e) => applyPeriodPreset(e.target.value)}><option value="custom">Datas personalizadas</option><option value="30d">Últimos 30 dias</option><option value="month">Este mês</option><option value="year">Este ano</option></select></label>
             <label className="scope-field"><span>Data inicial</span><div className="date-control"><CalendarRange /><input aria-label="Início do período" name="periodStart" type="date" value={periodStart} onChange={(e) => { setPeriodPreset("custom"); setPeriodStart(e.target.value); }} required /></div></label>
             <label className="scope-field"><span>Data final</span><div className="date-control"><CalendarRange /><input aria-label="Fim do período" name="periodEnd" type="date" value={periodEnd} onChange={(e) => { setPeriodPreset("custom"); setPeriodEnd(e.target.value); }} required /></div></label>
