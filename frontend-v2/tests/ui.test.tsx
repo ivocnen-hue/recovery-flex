@@ -38,11 +38,12 @@ describe("Fase 1", () => {
   it("renderiza upload e lista arquivo", async () => {
     const user = userEvent.setup();
     const { container } = renderPage(<NewAudit />);
-    const input = container.querySelector(
-      "input[type=file]",
-    ) as HTMLInputElement;
-    await user.upload(input, new File(["a"], "flex.csv", { type: "text/csv" }));
+    const inputs = container.querySelectorAll("input[type=file]");
+    await user.upload(inputs[0] as HTMLInputElement, new File(["a"], "flex.csv", { type: "text/csv" }));
+    await user.upload(inputs[1] as HTMLInputElement, new File(["regra"], "contrato.pdf", { type: "application/pdf" }));
     expect(screen.getByText("flex.csv")).toBeInTheDocument();
+    expect(screen.getByText("contrato.pdf")).toBeInTheDocument();
+    expect(screen.getByText("Enviados juntos ao mesmo dossiê")).toBeInTheDocument();
   });
   it("escolhe auditoria, exibe totais e abre um caso do dossiê", async () => {
     const user = userEvent.setup();
@@ -92,5 +93,12 @@ describe("Fase 1", () => {
     expect(screen.getByLabelText("Mercado Livre")).toBeChecked();
     expect(screen.getByLabelText("Shopee")).toBeChecked();
     expect(screen.getByLabelText("Início do período")).not.toHaveValue("");
+  });
+  it("aceita marketplace ou operação personalizada", async () => {
+    const user = userEvent.setup();
+    renderPage(<NewAudit />);
+    await user.type(screen.getByLabelText("Outra origem"), "TikTok Shop");
+    await user.click(screen.getByRole("button", { name: "Adicionar" }));
+    expect(screen.getByText("TikTok Shop")).toBeInTheDocument();
   });
 });
