@@ -8,8 +8,14 @@ export type DossierFilters = {
   marketplace: string;
   status: string;
   rule: string;
-  sort: "recovery_desc" | "recovery_asc" | "tracking_asc" | "sku_asc";
+  sort: FindingSort;
 };
+
+export type SortField = "status" | "tracking" | "marketplace" | "sku" | "charged" | "expected" | "recovery" | "rule";
+export type FindingSort = `${SortField}_${"asc" | "desc"}`;
+
+export const toggleFindingSort = (current: FindingSort, field: SortField): FindingSort =>
+  current === `${field}_asc` ? `${field}_desc` : `${field}_asc`;
 
 const searchable = (value: unknown) => String(value ?? "").toLocaleLowerCase("pt-BR");
 
@@ -29,10 +35,21 @@ export function filterAndSortFindings(items: Finding[], filters: DossierFilters)
       && (filters.rule === "ALL" || (item.rule_id ?? "Sem regra") === filters.rule);
   });
 
+  const [field, direction] = filters.sort.split("_") as [SortField, "asc" | "desc"];
+  const factor = direction === "asc" ? 1 : -1;
+  const value = (item: Finding): string | number => {
+    if (field === "status") return searchable(item.status);
+    if (field === "tracking") return searchable(item.tracking_number ?? item.order_id ?? item.shipment_id);
+    if (field === "marketplace") return searchable(item.marketplace);
+    if (field === "sku") return searchable(findingSkuDisplay(item));
+    if (field === "charged") return item.charged_amount ?? Number.NEGATIVE_INFINITY;
+    if (field === "expected") return item.expected_amount ?? Number.NEGATIVE_INFINITY;
+    if (field === "rule") return searchable(item.rule_id);
+    return item.recoverable_amount ?? Number.NEGATIVE_INFINITY;
+  };
   return filtered.sort((a, b) => {
-    if (filters.sort === "recovery_asc") return (a.recoverable_amount ?? 0) - (b.recoverable_amount ?? 0);
-    if (filters.sort === "tracking_asc") return searchable(a.tracking_number ?? a.order_id).localeCompare(searchable(b.tracking_number ?? b.order_id));
-    if (filters.sort === "sku_asc") return findingSkuDisplay(a).localeCompare(findingSkuDisplay(b), "pt-BR");
-    return (b.recoverable_amount ?? 0) - (a.recoverable_amount ?? 0);
+    const left = value(a);
+    const right = value(b);
+    return factor * (typeof left === "number" && typeof right === "number" ? left - right : String(left).localeCompare(String(right), "pt-BR"));
   });
 }

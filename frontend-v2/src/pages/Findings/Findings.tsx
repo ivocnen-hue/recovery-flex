@@ -3,13 +3,14 @@ import { useMemo, useState } from "react";
 import { auditsApi } from "../../api/audits";
 import { FindingDrawer } from "../../components/findings/FindingDrawer";
 import { RulesDrawer } from "../../components/findings/RulesDrawer";
+import { SortableHeader } from "../../components/findings/SortableHeader";
 import { EmptyState, ErrorState, LoadingState } from "../../components/ui/States";
 import { StatusBadge } from "../../components/ui/StatusBadge";
 import type { Finding } from "../../contracts/types";
 import { useAuditRules, useAudits, useFindings } from "../../hooks/useRecoveryData";
-import { filterAndSortFindings, type DossierFilters } from "../../lib/auditFindings";
+import { filterAndSortFindings, toggleFindingSort, type DossierFilters, type SortField } from "../../lib/auditFindings";
 import { formatCurrency } from "../../lib/currency";
-import { formatDate } from "../../lib/dates";
+import { formatDate, formatPeriod } from "../../lib/dates";
 import { findingDimensionsDisplay, findingProductDisplay, findingSkuDisplay } from "../../lib/findings";
 
 const initialFilters: DossierFilters = { query: "", tracking: "", sku: "", marketplace: "ALL", status: "ALL", rule: "ALL", sort: "recovery_desc" };
@@ -55,6 +56,7 @@ export function Findings() {
     setSelected(null);
     setShowRules(false);
   };
+  const sortBy = (field: SortField) => updateFilter("sort", toggleFindingSort(filters.sort, field));
   const downloadExcel = async () => {
     if (!auditId) return;
     setExporting(true);
@@ -76,13 +78,13 @@ export function Findings() {
 
     <section className="panel audit-picker">
       <div className="audit-picker-icon"><FolderSearch /></div>
-      <label><span>Auditoria</span><select aria-label="Escolher auditoria" value={auditId} onChange={(event) => chooseAudit(event.target.value)}><option value="">Selecione uma auditoria...</option>{[...(audits.data?.items ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at)).map((item) => <option key={item.audit_id} value={item.audit_id}>{item.seller} · {item.operation ?? "Operação não informada"} · {item.period} · {item.audit_id.slice(0, 8)}</option>)}</select></label>
+      <label><span>Auditoria</span><select aria-label="Escolher auditoria" value={auditId} onChange={(event) => chooseAudit(event.target.value)}><option value="">Selecione uma auditoria...</option>{[...(audits.data?.items ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at)).map((item) => <option key={item.audit_id} value={item.audit_id}>{item.seller} · {item.operation ?? "Operação não informada"} · {formatPeriod(item.period)} · {item.audit_id.slice(0, 8)}</option>)}</select></label>
       {audit && <div className="audit-picker-meta"><b>{audit.seller}</b><span>{formatDate(audit.created_at)}</span></div>}
       <button className="button primary" disabled={!auditId || exporting} onClick={downloadExcel}><FileSpreadsheet /> {exporting ? "Gerando..." : "Exportar Excel"}</button>
     </section>
 
     {audit && <section className="audit-scope-strip">
-      <div className="audit-period"><CalendarRange /><span>Período auditado</span><b>{audit.period}</b></div>
+      <div className="audit-period"><CalendarRange /><span>Período auditado</span><b>{formatPeriod(audit.period)}</b></div>
       <div><span>Seller / operação</span><b>{audit.seller} · {audit.operation ?? "Não informada"}</b></div>
       <div><span>Canais auditados</span><b>{(audit.channels?.length ? audit.channels : [audit.marketplace]).join(" · ")}</b></div>
       <div><span>Auditoria</span><b>{audit.audit_id.slice(0, 8)}</b></div>
@@ -97,7 +99,7 @@ export function Findings() {
         </section>
 
         <section className="panel dossier-results">
-          <header className="results-header"><div><SlidersHorizontal /><div><h3>Resultados da auditoria</h3><p>{audit?.seller} · {audit?.period}</p></div></div><div className="results-actions"><button className="button subtle" onClick={() => setShowRules(true)}><BookOpenCheck /> Ver regras <span>{auditRules.data?.items.length ?? 0}</span></button><div className="result-summary"><b>{filtered.length.toLocaleString("pt-BR")}</b><span>casos filtrados</span><b>{formatCurrency(totals.recoverable)}</b><span>recuperável</span></div></div></header>
+          <header className="results-header"><div><SlidersHorizontal /><div><h3>Resultados da auditoria</h3><p>{audit?.seller} · {formatPeriod(audit?.period ?? "")}</p></div></div><div className="results-actions"><button className="button subtle" onClick={() => setShowRules(true)}><BookOpenCheck /> Ver regras <span>{auditRules.data?.items.length ?? 0}</span></button><div className="result-summary"><b>{filtered.length.toLocaleString("pt-BR")}</b><span>casos filtrados</span><b>{formatCurrency(totals.recoverable)}</b><span>recuperável</span></div></div></header>
           <div className="dossier-filterbar dossier-hub-filters">
             <label className="filter-field filter-search"><span>Busca geral</span><div><Search /><input aria-label="Busca geral" value={filters.query} onChange={(event) => updateFilter("query", event.target.value)} placeholder="ID, pedido, regra, canal..." /></div></label>
             <label className="filter-field"><span>Rastreio ou pedido</span><input aria-label="Rastreio ou pedido" value={filters.tracking} onChange={(event) => updateFilter("tracking", event.target.value)} placeholder="Número de rastreio" /></label>
@@ -105,11 +107,11 @@ export function Findings() {
             <label className="filter-field"><span>Canal</span><select aria-label="Canal" value={filters.marketplace} onChange={(event) => updateFilter("marketplace", event.target.value)}><option value="ALL">Todos</option>{marketplaces.map((value) => <option key={value}>{value}</option>)}</select></label>
             <label className="filter-field"><span>Status</span><select aria-label="Status" value={filters.status} onChange={(event) => updateFilter("status", event.target.value)}><option value="ALL">Todos</option><option value="OVERCHARGED">Recuperável</option><option value="OK">Correto</option><option value="PENDING">Pendente</option><option value="REVIEW_REQUIRED">Revisão</option></select></label>
             <label className="filter-field"><span>Regra</span><select aria-label="Regra" value={filters.rule} onChange={(event) => updateFilter("rule", event.target.value)}><option value="ALL">Todas</option>{rules.map((value) => <option key={value}>{value}</option>)}</select></label>
-            <label className="filter-field"><span>Ordenar</span><select aria-label="Ordenar resultados" value={filters.sort} onChange={(event) => updateFilter("sort", event.target.value as DossierFilters["sort"])}><option value="recovery_desc">Maior recuperação</option><option value="recovery_asc">Menor recuperação</option><option value="tracking_asc">Rastreio / pedido</option><option value="sku_asc">SKU</option></select></label>
+            <label className="filter-field"><span>Ordenar</span><select aria-label="Ordenar resultados" value={filters.sort} onChange={(event) => updateFilter("sort", event.target.value as DossierFilters["sort"])}><option value="recovery_desc">Maior recuperação</option><option value="recovery_asc">Menor recuperação</option><option value="charged_desc">Maior cobrança</option><option value="expected_desc">Maior valor devido</option><option value="tracking_asc">Rastreio / pedido</option><option value="marketplace_asc">Canal</option><option value="status_asc">Status</option><option value="sku_asc">SKU</option><option value="rule_asc">Regra</option></select></label>
             <button className="button filter-reset" onClick={() => { setFilters(initialFilters); setPage(0); }}><FilterX /> Limpar</button>
           </div>
           <div className="filter-insights"><span><SlidersHorizontal /> {filtered.length.toLocaleString("pt-BR")} de {items.length.toLocaleString("pt-BR")} casos</span><span>{marketplaces.length} canal(is) identificado(s)</span><span>Auditoria {auditId.slice(0, 8)}</span></div>
-          {visible.length ? <div className="table-wrap"><table className="dossier-table dossier-hub-table"><thead><tr><th>Status</th><th>Rastreio / pedido</th><th>Canal</th><th>SKU / produto</th><th>Dimensões / peso</th><th className="number">Cobrado</th><th className="number">Devido</th><th className="number">Recuperável</th><th>Regra aplicada</th><th /></tr></thead><tbody>{visible.map((item) => {
+          {visible.length ? <div className="table-wrap"><table className="dossier-table dossier-hub-table"><thead><tr><SortableHeader label="Status" field="status" sort={filters.sort} onSort={sortBy} /><SortableHeader label="Rastreio / pedido" field="tracking" sort={filters.sort} onSort={sortBy} /><SortableHeader label="Canal" field="marketplace" sort={filters.sort} onSort={sortBy} /><SortableHeader label="SKU / produto" field="sku" sort={filters.sort} onSort={sortBy} /><th>Dimensões / peso</th><SortableHeader label="Cobrado" field="charged" sort={filters.sort} onSort={sortBy} number /><SortableHeader label="Devido" field="expected" sort={filters.sort} onSort={sortBy} number /><SortableHeader label="Recuperável" field="recovery" sort={filters.sort} onSort={sortBy} number /><SortableHeader label="Regra aplicada" field="rule" sort={filters.sort} onSort={sortBy} /><th /></tr></thead><tbody>{visible.map((item) => {
             const technical = findingDimensionsDisplay(item);
             return <tr key={item.finding_id} className="clickable-row" onClick={() => setSelected(item)} tabIndex={0} onKeyDown={(event) => event.key === "Enter" && setSelected(item)}><td><StatusBadge status={item.status} /></td><td><b>{item.tracking_number ?? item.shipment_id ?? "—"}</b><small>{item.order_id ?? item.shipment_id ?? "Sem pedido"}</small></td><td><span className="marketplace-pill">{item.marketplace ?? "Não informado"}</span><small>{item.carrier ?? "Transportadora não informada"}</small></td><td className="sku-cell"><b>{findingSkuDisplay(item)}</b><small>{findingProductDisplay(item) ?? (item.quantity != null ? `${item.quantity} unidade(s)` : "Produto não conciliado")}</small></td><td className="technical-cell"><b>{technical.dimensions}</b><small>{technical.weight ?? "Peso não identificado"}</small></td><td className="number">{formatCurrency(item.charged_amount)}</td><td className="number">{formatCurrency(item.expected_amount)}</td><td className="number recover">{formatCurrency(item.recoverable_amount)}</td><td className="rule-cell"><b>{item.rule_id ?? "Sem regra"}</b><small>{item.rule_version ? `Versão ${item.rule_version}` : "Versão não informada"}</small></td><td><ChevronRight /></td></tr>;
           })}</tbody></table></div> : <EmptyState message="Nenhum caso encontrado com estes filtros." />}

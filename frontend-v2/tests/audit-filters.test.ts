@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { demoFindings } from "../src/mocks/demoData";
-import { filterAndSortFindings, type DossierFilters } from "../src/lib/auditFindings";
+import { filterAndSortFindings, toggleFindingSort, type DossierFilters } from "../src/lib/auditFindings";
+import { formatDate, formatPeriod } from "../src/lib/dates";
 import { findingDimensionsDisplay } from "../src/lib/findings";
 import { formatRuleCondition } from "../src/lib/rules";
 
@@ -34,6 +35,18 @@ describe("filtros do dossiê", () => {
   it("ordena pelo maior valor recuperável", () => {
     const result = filterAndSortFindings(demoFindings, filters);
     expect(result[0].recoverable_amount).toBeGreaterThanOrEqual(result[1].recoverable_amount ?? 0);
+  });
+
+  it("ordena diretamente por qualquer coluna", () => {
+    const byChannel = filterAndSortFindings(demoFindings, { ...filters, sort: "marketplace_asc" });
+    expect(byChannel[0].marketplace?.localeCompare(byChannel.at(-1)?.marketplace ?? "", "pt-BR")).toBeLessThanOrEqual(0);
+    expect(toggleFindingSort("status_asc", "status")).toBe("status_desc");
+    expect(toggleFindingSort("recovery_desc", "tracking")).toBe("tracking_asc");
+  });
+
+  it("exibe datas brasileiras sem alterar o contrato ISO", () => {
+    expect(formatPeriod("2025-01-01 — 2026-09-01")).toBe("01-01-2025 — 01-09-2026");
+    expect(formatDate("2026-09-01T14:54:00-03:00")).toMatch(/^01-09-2026 14:54$/);
   });
 
   it("formata dimensões e peso sem presumir dados ausentes", () => {

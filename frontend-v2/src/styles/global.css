@@ -711,6 +711,24 @@ th {
   font-weight: 700;
   background: #0c1117;
 }
+.sortable-column button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+.sortable-column.number button { justify-content: flex-end; width: 100%; }
+.sortable-column button:hover,
+.sortable-column[aria-sort="ascending"] button,
+.sortable-column[aria-sort="descending"] button { color: var(--accent); }
+.sortable-column button svg { flex: 0 0 11px; width: 11px; height: 11px; }
 th,
 td {
   padding: 12px 14px;

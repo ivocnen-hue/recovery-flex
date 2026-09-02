@@ -1,7 +1,7 @@
 import { ArrowUpRight } from "lucide-react";
 import type { AuditListItem } from "../../contracts/types";
 import { formatCurrency } from "../../lib/currency";
-import { formatDate } from "../../lib/dates";
+import { formatDate, formatPeriod } from "../../lib/dates";
 import { StatusBadge } from "../ui/StatusBadge";
 import { EmptyState } from "../ui/States";
 import { Link } from "react-router-dom";
@@ -36,7 +36,7 @@ export function AuditTable({ items }: { items: AuditListItem[] }) {
                 <small>{a.operation || "Operação não informada"}</small>
               </td>
               <td><div className="channel-list">{(a.channels?.length ? a.channels : [a.marketplace]).map(channel => <span key={channel}>{channel}</span>)}</div></td>
-              <td>{a.period}</td>
+              <td>{formatPeriod(a.period)}</td>
               <td>
                 <StatusBadge status={a.status} />
               </td>

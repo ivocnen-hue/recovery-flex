@@ -57,6 +57,8 @@ describe("Fase 1", () => {
     expect(screen.getByRole("columnheader", { name: "Canal" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "SKU / produto" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Dimensões / peso" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Status" }));
+    expect(screen.getByRole("columnheader", { name: "Status" })).toHaveAttribute("aria-sort", "ascending");
     const headers = screen.getAllByRole("columnheader").map((header) => header.textContent);
     expect(headers.indexOf("Regra aplicada")).toBeGreaterThan(headers.indexOf("Recuperável"));
     expect(screen.getByText("Período auditado")).toBeInTheDocument();
