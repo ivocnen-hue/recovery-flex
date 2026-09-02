@@ -279,7 +279,7 @@ select {
 .dossier-hub-table th:nth-child(3) { min-width: 145px; }
 .dossier-hub-table th:nth-child(4) { min-width: 210px; }
 .dossier-hub-table th:nth-child(5) { min-width: 170px; }
-.dossier-hub-table th:nth-child(6) { min-width: 190px; }
+.dossier-hub-table th:nth-child(9) { min-width: 190px; }
 .technical-cell b, .rule-cell b { display: block; color: #d5dde5; font-size: 10px; }
 .technical-cell small, .rule-cell small { display: block; margin-top: 4px; }
 .dossier-hub-table td:last-child svg { width: 14px; color: var(--accent); }
