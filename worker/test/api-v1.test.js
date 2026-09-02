@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAuditWorkbook, canonicalizeAudit, clarificationQuestions, handleV1Request, preflightRuleClarifications, sourcesJsonByteLength, streamSourcesJson } from "../src/api-v1.js";
+import { buildAuditWorkbook, canonicalizeAudit, clarificationQuestions, handleV1Request, preflightRuleClarifications, sourcesJsonByteLength, streamSourcesJson, unansweredClarificationQuestions } from "../src/api-v1.js";
 import { repairStoredTabularLayout, sourceMappingKey } from "../src/index.js";
 
 const payload = {
@@ -37,6 +37,22 @@ describe("canonical API v1 adapter", () => {
     answered.validity_start = "2026-01-01";
     answered.validity_end = "2026-12-31";
     expect(preflightRuleClarifications({ content, context: { rule_clarifications: answered } })).toEqual([]);
+  });
+
+  it("does not ask again for clarifications already supplied by the user", () => {
+    const questions = clarificationQuestions([
+      "A reputação da conta no período não foi informada.",
+      "A data de início e a data de término da vigência não foram informadas.",
+    ]);
+    expect(unansweredClarificationQuestions(questions, {
+      seller_reputation: "Verde",
+      validity_start: "2026-07-07",
+      validity_end: "2026-09-02",
+    })).toEqual([]);
+    expect(unansweredClarificationQuestions(questions, {
+      seller_reputation: "Verde",
+      validity_start: "2026-07-07",
+    }).map(item => item.id)).toEqual(["validity"]);
   });
 
   it("preserves explicit financial calculations", () => {

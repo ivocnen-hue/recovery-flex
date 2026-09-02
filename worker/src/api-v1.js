@@ -536,6 +536,17 @@ export const clarificationQuestions = ambiguities => {
   return questions;
 };
 
+export const unansweredClarificationQuestions = (questions, answers) => {
+  const supplied = answers && typeof answers === "object" ? answers : {};
+  return questions.filter(question => {
+    if (question.answer_type === "date_range") {
+      return !String(supplied[`${question.id}_start`] || "").trim() ||
+        !String(supplied[`${question.id}_end`] || "").trim();
+    }
+    return !String(supplied[question.id] || "").trim();
+  });
+};
+
 export const preflightRuleClarifications = source => {
   const content = String(source?.content || "").toLowerCase();
   const answers = source?.context?.rule_clarifications && typeof source.context.rule_clarifications === "object"
@@ -701,11 +712,19 @@ async function uploadSource(request, env, json, auditId, parseRuleSource) {
         const ambiguities = Array.isArray(interpreted?.ambiguities) ? interpreted.ambiguities.filter(Boolean) : [];
         if (ambiguities.length) {
           const questions = clarificationQuestions(ambiguities);
-          return apiError(json, 422, questions.length ? "RULE_CLARIFICATION_REQUIRED" : "RULE_INTERPRETATION_UNRESOLVED", questions.length
-            ? `Precisamos de ${questions.length} resposta(s) para interpretar ${parsed.file.name} com segurança.`
+          const answers = source?.context?.rule_clarifications;
+          const unanswered = unansweredClarificationQuestions(questions, answers);
+          if (questions.length && !unanswered.length && interpreted?.rule_set?.rules?.length) {
+            interpreted.warnings = [
+              ...(Array.isArray(interpreted.warnings) ? interpreted.warnings : []),
+              "As dúvidas do documento foram resolvidas pelas respostas explícitas fornecidas nesta auditoria.",
+            ];
+            interpreted.ambiguities = [];
+          } else return apiError(json, 422, unanswered.length ? "RULE_CLARIFICATION_REQUIRED" : "RULE_INTERPRETATION_UNRESOLVED", unanswered.length
+            ? `Precisamos de ${unanswered.length} resposta(s) para interpretar ${parsed.file.name} com segurança.`
             : `O PDF ${parsed.file.name} foi lido, mas gerou regras que ainda não são executáveis com segurança.`, {
             filename: parsed.file.name,
-            required_inputs: questions,
+            required_inputs: unanswered,
             ambiguities,
           });
         }
