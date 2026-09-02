@@ -2,7 +2,7 @@ import { X } from "lucide-react";
 import type { Finding } from "../../contracts/types";
 import { formatCurrency } from "../../lib/currency";
 import { formatConfidence } from "../../lib/confidence";
-import { findingSkuDisplay } from "../../lib/findings";
+import { findingDimensionsDisplay, findingProductDisplay, findingSkuDisplay } from "../../lib/findings";
 import { StatusBadge } from "../ui/StatusBadge";
 import { EvidenceChain } from "./EvidenceChain";
 export function FindingDrawer({
@@ -13,6 +13,7 @@ export function FindingDrawer({
   onClose: () => void;
 }) {
   if (!finding) return null;
+  const technical = findingDimensionsDisplay(finding);
   return (
     <>
       <button
@@ -76,6 +77,18 @@ export function FindingDrawer({
               <div>
                 <dt>SKU(s)</dt>
                 <dd>{findingSkuDisplay(finding)}</dd>
+              </div>
+              <div>
+                <dt>Produto(s)</dt>
+                <dd>{findingProductDisplay(finding) ?? "Não identificado"}</dd>
+              </div>
+              <div>
+                <dt>Dimensões</dt>
+                <dd>{technical.dimensions}</dd>
+              </div>
+              <div>
+                <dt>Peso</dt>
+                <dd>{technical.weight ?? "Não identificado"}</dd>
               </div>
               <div>
                 <dt>Match method</dt>

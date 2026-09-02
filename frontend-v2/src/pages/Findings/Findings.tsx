@@ -1,7 +1,8 @@
-import { ChevronRight, FileSpreadsheet, FilterX, FolderSearch, Search, SlidersHorizontal } from "lucide-react";
+import { BookOpenCheck, CalendarRange, ChevronRight, FileSpreadsheet, FilterX, FolderSearch, Search, SlidersHorizontal } from "lucide-react";
 import { useMemo, useState } from "react";
 import { auditsApi } from "../../api/audits";
 import { FindingDrawer } from "../../components/findings/FindingDrawer";
+import { RulesDrawer } from "../../components/findings/RulesDrawer";
 import { EmptyState, ErrorState, LoadingState } from "../../components/ui/States";
 import { StatusBadge } from "../../components/ui/StatusBadge";
 import type { Finding } from "../../contracts/types";
@@ -9,7 +10,7 @@ import { useAudits, useFindings } from "../../hooks/useRecoveryData";
 import { filterAndSortFindings, type DossierFilters } from "../../lib/auditFindings";
 import { formatCurrency } from "../../lib/currency";
 import { formatDate } from "../../lib/dates";
-import { findingSkuDisplay } from "../../lib/findings";
+import { findingDimensionsDisplay, findingProductDisplay, findingSkuDisplay } from "../../lib/findings";
 
 const initialFilters: DossierFilters = { query: "", tracking: "", sku: "", marketplace: "ALL", status: "ALL", rule: "ALL", sort: "recovery_desc" };
 const emptyFindings: Finding[] = [];
@@ -21,6 +22,7 @@ export function Findings() {
   const [selected, setSelected] = useState<Finding | null>(null);
   const [filters, setFilters] = useState<DossierFilters>(initialFilters);
   const [exporting, setExporting] = useState(false);
+  const [showRules, setShowRules] = useState(false);
   const [page, setPage] = useState(0);
   const items = findings.data?.items ?? emptyFindings;
   const filtered = useMemo(() => filterAndSortFindings(items, filters), [items, filters]);
@@ -50,6 +52,7 @@ export function Findings() {
     setPage(0);
     setFilters(initialFilters);
     setSelected(null);
+    setShowRules(false);
   };
   const downloadExcel = async () => {
     if (!auditId) return;
@@ -77,6 +80,13 @@ export function Findings() {
       <button className="button primary" disabled={!auditId || exporting} onClick={downloadExcel}><FileSpreadsheet /> {exporting ? "Gerando..." : "Exportar Excel"}</button>
     </section>
 
+    {audit && <section className="audit-scope-strip">
+      <div className="audit-period"><CalendarRange /><span>Período auditado</span><b>{audit.period}</b></div>
+      <div><span>Seller / operação</span><b>{audit.seller} · {audit.operation ?? "Não informada"}</b></div>
+      <div><span>Canais auditados</span><b>{(audit.channels?.length ? audit.channels : [audit.marketplace]).join(" · ")}</b></div>
+      <div><span>Auditoria</span><b>{audit.audit_id.slice(0, 8)}</b></div>
+    </section>}
+
     {!auditId ? <section className="panel dossier-placeholder"><FolderSearch /><h3>Selecione a auditoria acima</h3><p>Os valores, canais e casos exibidos pertencerão exclusivamente à auditoria escolhida.</p></section>
       : findings.isLoading ? <LoadingState /> : findings.error ? <ErrorState error={findings.error} /> : <>
         <section className="metrics dossier-financials">
@@ -86,7 +96,7 @@ export function Findings() {
         </section>
 
         <section className="panel dossier-results">
-          <header className="results-header"><div><SlidersHorizontal /><div><h3>Resultados da auditoria</h3><p>{audit?.seller} · {audit?.period}</p></div></div><div className="result-summary"><b>{filtered.length.toLocaleString("pt-BR")}</b><span>casos filtrados</span><b>{formatCurrency(totals.recoverable)}</b><span>recuperável</span></div></header>
+          <header className="results-header"><div><SlidersHorizontal /><div><h3>Resultados da auditoria</h3><p>{audit?.seller} · {audit?.period}</p></div></div><div className="results-actions"><button className="button subtle" onClick={() => setShowRules(true)}><BookOpenCheck /> Ver regras <span>{rules.length}</span></button><div className="result-summary"><b>{filtered.length.toLocaleString("pt-BR")}</b><span>casos filtrados</span><b>{formatCurrency(totals.recoverable)}</b><span>recuperável</span></div></div></header>
           <div className="dossier-filterbar dossier-hub-filters">
             <label className="filter-field filter-search"><span>Busca geral</span><div><Search /><input aria-label="Busca geral" value={filters.query} onChange={(event) => updateFilter("query", event.target.value)} placeholder="ID, pedido, regra, canal..." /></div></label>
             <label className="filter-field"><span>Rastreio ou pedido</span><input aria-label="Rastreio ou pedido" value={filters.tracking} onChange={(event) => updateFilter("tracking", event.target.value)} placeholder="Número de rastreio" /></label>
@@ -98,10 +108,14 @@ export function Findings() {
             <button className="button filter-reset" onClick={() => { setFilters(initialFilters); setPage(0); }}><FilterX /> Limpar</button>
           </div>
           <div className="filter-insights"><span><SlidersHorizontal /> {filtered.length.toLocaleString("pt-BR")} de {items.length.toLocaleString("pt-BR")} casos</span><span>{marketplaces.length} canal(is) identificado(s)</span><span>Auditoria {auditId.slice(0, 8)}</span></div>
-          {visible.length ? <div className="table-wrap"><table className="dossier-table dossier-hub-table"><thead><tr><th>Status</th><th>Rastreio / pedido</th><th>Canal</th><th>Shipment</th><th>SKU(s)</th><th className="number">Qtd.</th><th className="number">Cobrado</th><th className="number">Devido</th><th className="number">Recuperável</th><th /></tr></thead><tbody>{visible.map((item) => <tr key={item.finding_id} className="clickable-row" onClick={() => setSelected(item)} tabIndex={0} onKeyDown={(event) => event.key === "Enter" && setSelected(item)}><td><StatusBadge status={item.status} /></td><td><b>{item.tracking_number ?? "—"}</b><small>{item.order_id ?? "Sem pedido"}</small></td><td><span className="marketplace-pill">{item.marketplace ?? "Não informado"}</span><small>{item.carrier ?? "Transportadora não informada"}</small></td><td>{item.shipment_id ?? "—"}</td><td className="sku-cell"><b>{findingSkuDisplay(item)}</b></td><td className="number">{item.quantity ?? "—"}</td><td className="number">{formatCurrency(item.charged_amount)}</td><td className="number">{formatCurrency(item.expected_amount)}</td><td className="number recover">{formatCurrency(item.recoverable_amount)}</td><td><ChevronRight /></td></tr>)}</tbody></table></div> : <EmptyState message="Nenhum caso encontrado com estes filtros." />}
+          {visible.length ? <div className="table-wrap"><table className="dossier-table dossier-hub-table"><thead><tr><th>Status</th><th>Rastreio / pedido</th><th>Canal</th><th>SKU / produto</th><th>Dimensões / peso</th><th>Regra aplicada</th><th className="number">Cobrado</th><th className="number">Devido</th><th className="number">Recuperável</th><th /></tr></thead><tbody>{visible.map((item) => {
+            const technical = findingDimensionsDisplay(item);
+            return <tr key={item.finding_id} className="clickable-row" onClick={() => setSelected(item)} tabIndex={0} onKeyDown={(event) => event.key === "Enter" && setSelected(item)}><td><StatusBadge status={item.status} /></td><td><b>{item.tracking_number ?? item.shipment_id ?? "—"}</b><small>{item.order_id ?? item.shipment_id ?? "Sem pedido"}</small></td><td><span className="marketplace-pill">{item.marketplace ?? "Não informado"}</span><small>{item.carrier ?? "Transportadora não informada"}</small></td><td className="sku-cell"><b>{findingSkuDisplay(item)}</b><small>{findingProductDisplay(item) ?? (item.quantity != null ? `${item.quantity} unidade(s)` : "Produto não conciliado")}</small></td><td className="technical-cell"><b>{technical.dimensions}</b><small>{technical.weight ?? "Peso não identificado"}</small></td><td className="rule-cell"><b>{item.rule_id ?? "Sem regra"}</b><small>{item.rule_version ? `Versão ${item.rule_version}` : "Versão não informada"}</small></td><td className="number">{formatCurrency(item.charged_amount)}</td><td className="number">{formatCurrency(item.expected_amount)}</td><td className="number recover">{formatCurrency(item.recoverable_amount)}</td><td><ChevronRight /></td></tr>;
+          })}</tbody></table></div> : <EmptyState message="Nenhum caso encontrado com estes filtros." />}
           <footer className="table-footer dossier-pagination"><span>Exibindo {visible.length.toLocaleString("pt-BR")} nesta página</span><div><button className="button" disabled={safePage === 0} onClick={() => setPage((value) => Math.max(0, value - 1))}>Anterior</button><span>Página {safePage + 1} de {pageCount}</span><button className="button" disabled={safePage + 1 >= pageCount} onClick={() => setPage((value) => value + 1)}>Próxima</button></div></footer>
         </section>
       </>}
     <FindingDrawer finding={selected} onClose={() => setSelected(null)} />
+    <RulesDrawer findings={items} open={showRules} onClose={() => setShowRules(false)} />
   </div>;
 }

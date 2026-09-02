@@ -54,7 +54,14 @@ describe("Fase 1", () => {
     expect(screen.getByText("Valor total devido")).toBeInTheDocument();
     expect(screen.getByText("Valor recuperável")).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Canal" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "SKU / produto" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Dimensões / peso" })).toBeInTheDocument();
+    expect(screen.getByText("Período auditado")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Exportar Excel" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: /Ver regras/ }));
+    expect(screen.getByRole("dialog", { name: "Regras da auditoria" })).toBeInTheDocument();
+    expect(screen.getByText("Fonte da verdade: backend")).toBeInTheDocument();
+    await user.click(screen.getByLabelText("Fechar"));
     await user.click(screen.getByText("MEL245987310BR"));
     expect(
       screen.getByRole("dialog", { name: "Detalhe do finding" }),

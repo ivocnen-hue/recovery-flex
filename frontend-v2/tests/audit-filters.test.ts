@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { demoFindings } from "../src/mocks/demoData";
 import { filterAndSortFindings, type DossierFilters } from "../src/lib/auditFindings";
+import { findingDimensionsDisplay } from "../src/lib/findings";
 
 const filters: DossierFilters = {
   query: "",
@@ -32,5 +33,17 @@ describe("filtros do dossiê", () => {
   it("ordena pelo maior valor recuperável", () => {
     const result = filterAndSortFindings(demoFindings, filters);
     expect(result[0].recoverable_amount).toBeGreaterThanOrEqual(result[1].recoverable_amount ?? 0);
+  });
+
+  it("formata dimensões e peso sem presumir dados ausentes", () => {
+    expect(findingDimensionsDisplay(demoFindings[0])).toEqual({ dimensions: "Não identificado", weight: null });
+    expect(findingDimensionsDisplay({ ...demoFindings[0], technical_data: {
+      dimensions_raw: null,
+      height_cm: 30,
+      width_cm: 20,
+      length_cm: 80,
+      weight_g: 1500,
+      volume_cm3: 48000,
+    } })).toEqual({ dimensions: "80 × 20 × 30 cm", weight: "1,5 kg" });
   });
 });
