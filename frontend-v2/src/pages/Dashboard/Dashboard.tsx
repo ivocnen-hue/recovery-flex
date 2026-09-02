@@ -16,6 +16,7 @@ import {
   useFindings,
 } from "../../hooks/useRecoveryData";
 import { formatCurrency } from "../../lib/currency";
+import { findingSkuDisplay } from "../../lib/findings";
 export function Dashboard() {
   const audit = useAuditSummary(),
     audits = useAudits(),
@@ -123,7 +124,7 @@ export function Dashboard() {
               <div key={f.finding_id}>
                 <span>{i + 1}</span>
                 <div>
-                  <b>{f.sku}</b>
+                  <b>{findingSkuDisplay(f)}</b>
                   <small>{f.tracking_number}</small>
                 </div>
                 <strong>{formatCurrency(f.recoverable_amount)}</strong>

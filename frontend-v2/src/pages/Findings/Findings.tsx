@@ -11,6 +11,7 @@ import type { Finding } from "../../contracts/types";
 import { useFindings } from "../../hooks/useRecoveryData";
 import { formatConfidence } from "../../lib/confidence";
 import { formatCurrency } from "../../lib/currency";
+import { findingSkuDisplay } from "../../lib/findings";
 export function Findings() {
   const query = useFindings();
   const [selected, setSelected] = useState<Finding | null>(null);
@@ -27,7 +28,7 @@ export function Findings() {
             f.tracking_number,
             f.order_id,
             f.shipment_id,
-            f.sku,
+            findingSkuDisplay(f),
             f.carrier,
             f.marketplace,
             f.rule_id,
@@ -121,7 +122,7 @@ export function Findings() {
                     </td>
                     <td>{f.shipment_id ?? "—"}</td>
                     <td>
-                      <b>{f.sku ?? "—"}</b>
+                      <b>{findingSkuDisplay(f)}</b>
                       <small>
                         {f.marketplace ?? "—"} · {f.carrier ?? "—"}
                       </small>

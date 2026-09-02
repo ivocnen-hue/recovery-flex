@@ -2,6 +2,7 @@ import { X } from "lucide-react";
 import type { Finding } from "../../contracts/types";
 import { formatCurrency } from "../../lib/currency";
 import { formatConfidence } from "../../lib/confidence";
+import { findingSkuDisplay } from "../../lib/findings";
 import { StatusBadge } from "../ui/StatusBadge";
 import { EvidenceChain } from "./EvidenceChain";
 export function FindingDrawer({
@@ -73,8 +74,8 @@ export function FindingDrawer({
                 <dd>{finding.shipment_id ?? "—"}</dd>
               </div>
               <div>
-                <dt>SKU</dt>
-                <dd>{finding.sku ?? "—"}</dd>
+                <dt>SKU(s)</dt>
+                <dd>{findingSkuDisplay(finding)}</dd>
               </div>
               <div>
                 <dt>Match method</dt>
