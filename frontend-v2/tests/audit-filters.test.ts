@@ -50,7 +50,7 @@ describe("filtros do dossiê", () => {
   });
 
   it("formata dimensões e peso sem presumir dados ausentes", () => {
-    expect(findingDimensionsDisplay(demoFindings[0])).toEqual({ dimensions: "Não identificado", weight: null });
+    expect(findingDimensionsDisplay(demoFindings[0])).toEqual({ dimensions: "Não identificado", weight: null, volume: null });
     expect(findingDimensionsDisplay({ ...demoFindings[0], technical_data: {
       dimensions_raw: null,
       height_cm: 30,
@@ -58,7 +58,7 @@ describe("filtros do dossiê", () => {
       length_cm: 80,
       weight_g: 1500,
       volume_cm3: 48000,
-    } })).toEqual({ dimensions: "80 × 20 × 30 cm", weight: "1,5 kg" });
+    } })).toEqual({ dimensions: "80 × 20 × 30 cm", weight: "1,5 kg", volume: "48.000 cm³" });
   });
 
   it("traduz as condições estruturadas da regra sem recalcular valores", () => {

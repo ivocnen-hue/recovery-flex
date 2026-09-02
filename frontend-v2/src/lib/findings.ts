@@ -16,7 +16,7 @@ export function findingProductDisplay(finding: Finding) {
 
 export function findingDimensionsDisplay(finding: Finding) {
   const data = finding.technical_data;
-  if (!data) return { dimensions: "Não identificado", weight: null };
+  if (!data) return { dimensions: "Não identificado", weight: null, volume: null };
   const parsed = [data.length_cm, data.width_cm, data.height_cm];
   const dimensions = parsed.every((value) => value != null)
     ? `${parsed.map((value) => Number(value).toLocaleString("pt-BR")).join(" × ")} cm`
@@ -26,5 +26,8 @@ export function findingDimensionsDisplay(finding: Finding) {
     : data.weight_g >= 1000
       ? `${(data.weight_g / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} kg`
       : `${data.weight_g.toLocaleString("pt-BR")} g`;
-  return { dimensions, weight };
+  const volume = data.volume_cm3 == null
+    ? null
+    : `${data.volume_cm3.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} cm³`;
+  return { dimensions, weight, volume };
 }
