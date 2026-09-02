@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAuditWorkbook, canonicalizeAudit, clarificationQuestions, handleV1Request, sourcesJsonByteLength, streamSourcesJson } from "../src/api-v1.js";
+import { buildAuditWorkbook, canonicalizeAudit, clarificationQuestions, handleV1Request, preflightRuleClarifications, sourcesJsonByteLength, streamSourcesJson } from "../src/api-v1.js";
 import { repairStoredTabularLayout, sourceMappingKey } from "../src/index.js";
 
 const payload = {
@@ -23,6 +23,20 @@ describe("canonical API v1 adapter", () => {
     ]);
     expect(questions.map(item => item.id)).toEqual(["seller_reputation", "logistics_mode", "validity", "price_cap"]);
     expect(questions.every(item => item.question.endsWith("?"))).toBe(true);
+  });
+
+  it("asks for known Mercado Livre context before calling AI", () => {
+    const content = "Custos dos Envios no Mercado Livre para MercadoLíder. Válido para produtos novos por Envios Full, Coleta e Agências. Frete grátis rápido opcional. Produtos de menos de R$ 19 pagam metade do preço. Até 0,3 kg. De 0,3 a 0,5 kg. O custo considera o peso e as medidas. Casos excepcionais por localização. Categorias têm custos diferenciados.";
+    const missing = preflightRuleClarifications({ content, context: { rule_clarifications: {} } });
+    expect(clarificationQuestions(missing).map(item => item.id)).toEqual([
+      "seller_reputation", "logistics_mode", "validity", "item_condition",
+      "optional_fast_shipping", "categories", "price_cap", "range_boundaries",
+      "billable_weight", "exception_scope",
+    ]);
+    const answered = Object.fromEntries(clarificationQuestions(missing).map(item => [item.id, "confirmado"]));
+    answered.validity_start = "2026-01-01";
+    answered.validity_end = "2026-12-31";
+    expect(preflightRuleClarifications({ content, context: { rule_clarifications: answered } })).toEqual([]);
   });
 
   it("preserves explicit financial calculations", () => {

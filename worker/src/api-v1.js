@@ -536,6 +536,28 @@ export const clarificationQuestions = ambiguities => {
   return questions;
 };
 
+export const preflightRuleClarifications = source => {
+  const content = String(source?.content || "").toLowerCase();
+  const answers = source?.context?.rule_clarifications && typeof source.context.rule_clarifications === "object"
+    ? source.context.rule_clarifications
+    : {};
+  const missing = [];
+  const needs = (id, message) => { if (!String(answers[id] || "").trim()) missing.push(message); };
+  const isMercadoLivreTable = content.includes("custos dos envios no mercado livre") || content.includes("mercadolíder");
+  if (!isMercadoLivreTable) return [];
+  needs("seller_reputation", "A reputação da conta no período não foi informada.");
+  needs("logistics_mode", "A modalidade entre Full, Coleta ou Agência não foi informada.");
+  if (!String(answers.validity_start || "").trim() || !String(answers.validity_end || "").trim()) missing.push("A data de início e a data de término da vigência não foram informadas.");
+  if (content.includes("produtos novos")) needs("item_condition", "A condição de produto novo ou usado não foi informada.");
+  if (content.includes("frete grátis rápido") && content.includes("opcional")) needs("optional_fast_shipping", "A opção de frete grátis rápido não foi informada.");
+  if (content.includes("metade do preço") || content.includes("50%")) needs("price_cap", "A aplicação do limite de 50% depende de confirmar se o preço está na planilha.");
+  if (content.includes("até 0,3 kg") && content.includes("de 0,3 a 0,5 kg")) needs("range_boundaries", "Os limites entre as faixas de peso precisam ser confirmados.");
+  if (content.includes("peso e as medidas")) needs("billable_weight", "É preciso confirmar se a tarifa usa peso real, peso dimensional ou o maior deles.");
+  if (content.includes("casos excepcionais")) needs("exception_scope", "Os casos excepcionais por localização do comprador precisam ser confirmados.");
+  if (content.includes("categorias têm custos") || content.includes("categorias especiais")) needs("categories", "As exceções de categoria precisam ser identificadas.");
+  return missing;
+};
+
 export const streamSourcesJson = sources => {
   const encoder = new TextEncoder();
   let sourceIndex = 0;
@@ -666,6 +688,15 @@ async function uploadSource(request, env, json, auditId, parseRuleSource) {
     if (parsed.kind === "rule" && parsed.ruleSources?.length) {
       if (typeof parseRuleSource !== "function") throw new Error("Interpretador de regras indisponível.");
       for (const source of parsed.ruleSources) {
+        const preflightAmbiguities = preflightRuleClarifications(source);
+        if (preflightAmbiguities.length) {
+          const questions = clarificationQuestions(preflightAmbiguities);
+          return apiError(json, 422, "RULE_CLARIFICATION_REQUIRED", `Precisamos de ${questions.length} resposta(s) para interpretar ${parsed.file.name} com segurança.`, {
+            filename: parsed.file.name,
+            required_inputs: questions,
+            ambiguities: preflightAmbiguities,
+          });
+        }
         const interpreted = await parseRuleSource(env, source, nullableText(audit.seller));
         const ambiguities = Array.isArray(interpreted?.ambiguities) ? interpreted.ambiguities.filter(Boolean) : [];
         if (ambiguities.length) return apiError(json, 422, "RULE_CLARIFICATION_REQUIRED", `Precisamos de ${clarificationQuestions(ambiguities).length} resposta(s) para interpretar ${parsed.file.name} com segurança.`, {
@@ -680,6 +711,9 @@ async function uploadSource(request, env, json, auditId, parseRuleSource) {
       }
     }
   } catch (error) {
+    if (error?.name === "AbortError" || String(error?.message || "").toLowerCase().includes("aborted")) {
+      return apiError(json, 504, "RULE_INTERPRETATION_TIMEOUT", "A interpretação do PDF demorou além do esperado. Suas planilhas continuam intactas; tente novamente.");
+    }
     return apiError(json, 400, "INVALID_UPLOAD", error instanceof Error ? error.message : "Envio inválido.");
   }
   const sourceId = crypto.randomUUID();
