@@ -2,8 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { auditsApi } from "../api/audits";
 import { findingsApi } from "../api/findings";
 import { healthApi } from "../api/health";
+import { rulesApi } from "../api/rules";
 import { queryKeys } from "../api/queryKeys";
-import { demoAudit, demoAudits, demoFindings } from "../mocks/demoData";
+import { demoAudit, demoAudits, demoFindings, demoRules } from "../mocks/demoData";
 export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE !== "false";
 export const useWorkerHealth = () =>
   useQuery({
@@ -51,6 +52,15 @@ export const useFindings = (auditId = "latest", enabled = true) =>
             next_cursor: null,
           }
         : findingsApi.list(auditId),
+    enabled,
+    retry: false,
+  });
+export const useAuditRules = (auditId: string, enabled = true) =>
+  useQuery({
+    queryKey: queryKeys.rules(auditId),
+    queryFn: async () => DEMO_MODE
+      ? { ok: true as const, schema_version: "1.0" as const, audit_id: auditId, items: demoRules }
+      : rulesApi.list(auditId),
     enabled,
     retry: false,
   });

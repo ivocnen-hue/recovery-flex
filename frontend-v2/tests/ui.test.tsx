@@ -60,7 +60,10 @@ describe("Fase 1", () => {
     expect(screen.getByRole("button", { name: "Exportar Excel" })).toBeEnabled();
     await user.click(screen.getByRole("button", { name: /Ver regras/ }));
     expect(screen.getByRole("dialog", { name: "Regras da auditoria" })).toBeInTheDocument();
-    expect(screen.getByText("Fonte da verdade: backend")).toBeInTheDocument();
+    expect(screen.getByText("Regras interpretadas do PDF pelo Worker")).toBeInTheDocument();
+    expect(screen.getByText("Quantidade de unidades menor ou igual a 3")).toBeInTheDocument();
+    expect(screen.getByText("Peso menor que 2 kg")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Baixar PDF original" })).toBeInTheDocument();
     await user.click(screen.getByLabelText("Fechar"));
     await user.click(screen.getByText("MEL245987310BR"));
     expect(

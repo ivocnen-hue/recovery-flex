@@ -230,3 +230,23 @@ export const demoFindings: Finding[] = [
     evidence: [],
   },
 ];
+
+export const demoRules = [{
+  source_id: "rule-demo-1",
+  filename: "Regra_Flex_Demo.pdf",
+  rule_set_name: "Regra Flex Demo",
+  version: "v3",
+  scope: { seller_id: null, marketplace: "Mercado Livre", logistics_mode: "Flex", carrier: null },
+  rule: {
+    id: "FLEX-SP-01",
+    priority: 100,
+    conditions: [
+      { field: "quantity", op: "lte", value: 3 },
+      { field: "weight_g", op: "lt", value: 2000 },
+      { field: "max_dimension_cm", op: "lte", value: 80 },
+    ],
+    calculation: { type: "fixed", amount: 12 },
+    source_reference: "Regra_Flex_Demo.pdf",
+  },
+  download_url: "/api/v1/audits/AUD-024/rules/rule-demo-1/document",
+}];

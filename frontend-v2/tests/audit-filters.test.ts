@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { demoFindings } from "../src/mocks/demoData";
 import { filterAndSortFindings, type DossierFilters } from "../src/lib/auditFindings";
 import { findingDimensionsDisplay } from "../src/lib/findings";
+import { formatRuleCondition } from "../src/lib/rules";
 
 const filters: DossierFilters = {
   query: "",
@@ -45,5 +46,11 @@ describe("filtros do dossiê", () => {
       weight_g: 1500,
       volume_cm3: 48000,
     } })).toEqual({ dimensions: "80 × 20 × 30 cm", weight: "1,5 kg" });
+  });
+
+  it("traduz as condições estruturadas da regra sem recalcular valores", () => {
+    expect(formatRuleCondition({ field: "quantity", op: "lte", value: 3 })).toBe("Quantidade de unidades menor ou igual a 3");
+    expect(formatRuleCondition({ field: "weight_g", op: "lt", value: 2000 })).toBe("Peso menor que 2 kg");
+    expect(formatRuleCondition({ field: "max_dimension_cm", op: "lte", value: 80 })).toBe("Maior dimensão menor ou igual a 80 cm");
   });
 });

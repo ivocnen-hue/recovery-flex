@@ -700,6 +700,65 @@ async function uploadSource(request, env, json, auditId) {
   }, 201);
 }
 
+async function listAuditRules(env, json, auditId) {
+  if (!env.SOURCES) return apiError(json, 503, "SOURCE_STORAGE_UNAVAILABLE", "Armazenamento de arquivos indisponível.");
+  const audit = await env.DB.prepare("SELECT audit_id FROM audits WHERE audit_id = ?").bind(auditId).first();
+  if (!audit) return apiError(json, 404, "AUDIT_NOT_FOUND", "Auditoria não encontrada.");
+  const { results = [] } = await env.DB.prepare(
+    "SELECT source_id, filename, parsed_r2_key FROM audit_sources WHERE audit_id = ? AND source_kind = 'rule' ORDER BY created_at, source_id",
+  ).bind(auditId).all();
+  const items = [];
+  for (const source of results) {
+    const object = await env.SOURCES.get(source.parsed_r2_key);
+    if (!object) continue;
+    const ruleSets = JSON.parse(await object.text());
+    for (const ruleSet of Array.isArray(ruleSets) ? ruleSets : []) {
+      for (const rule of Array.isArray(ruleSet?.rules) ? ruleSet.rules : []) {
+        items.push({
+          source_id: source.source_id,
+          filename: source.filename,
+          rule_set_name: nullableText(ruleSet?.name),
+          version: nullableText(ruleSet?.version),
+          scope: {
+            seller_id: nullableText(ruleSet?.seller_id),
+            marketplace: nullableText(ruleSet?.marketplace),
+            logistics_mode: nullableText(ruleSet?.logistics_mode),
+            carrier: nullableText(ruleSet?.carrier),
+          },
+          rule: {
+            id: nullableText(rule?.id) || "regra_sem_id",
+            priority: nullableNumber(rule?.priority),
+            conditions: Array.isArray(rule?.conditions) ? rule.conditions : [],
+            calculation: rule?.calculation && typeof rule.calculation === "object" ? rule.calculation : {},
+            source_reference: nullableText(rule?.source_reference) || source.filename,
+          },
+          download_url: `/api/v1/audits/${encodeURIComponent(auditId)}/rules/${encodeURIComponent(source.source_id)}/document`,
+        });
+      }
+    }
+  }
+  return json({ ok: true, schema_version: SCHEMA_VERSION, audit_id: auditId, items });
+}
+
+async function downloadRuleDocument(env, json, auditId, sourceId) {
+  if (!env.SOURCES) return apiError(json, 503, "SOURCE_STORAGE_UNAVAILABLE", "Armazenamento de arquivos indisponível.");
+  const source = await env.DB.prepare(
+    "SELECT filename, raw_r2_key FROM audit_sources WHERE audit_id = ? AND source_id = ? AND source_kind = 'rule'",
+  ).bind(auditId, sourceId).first();
+  if (!source) return apiError(json, 404, "RULE_DOCUMENT_NOT_FOUND", "Documento de regra não encontrado.");
+  const object = await env.SOURCES.get(source.raw_r2_key);
+  if (!object) return apiError(json, 404, "RULE_DOCUMENT_NOT_FOUND", "Documento de regra não encontrado.");
+  const filename = String(source.filename || "regra.pdf").replace(/[\r\n]/g, "_");
+  return new Response(object.body, {
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Content-Type": object.httpMetadata?.contentType || "application/pdf",
+      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      "Cache-Control": "private, no-store",
+    },
+  });
+}
+
 async function runStagedAudit(request, env, json, auditFull, auditFullInput, auditId) {
   if (!env.SOURCES) return apiError(json, 503, "SOURCE_STORAGE_UNAVAILABLE", "Armazenamento de arquivos indisponível.");
   const audit = await env.DB.prepare("SELECT * FROM audits WHERE audit_id = ?").bind(auditId).first();
@@ -756,6 +815,16 @@ export async function handleV1Request(request, env, url, dependencies) {
 
   if (url.pathname === "/api/v1/audits/drafts" && request.method === "POST") {
     return createDraft(request, env, json);
+  }
+
+  const rulesMatch = url.pathname.match(/^\/api\/v1\/audits\/([^/]+)\/rules(?:\/([^/]+)\/document)?$/);
+  if (rulesMatch) {
+    if (request.method !== "GET") return apiError(json, 405, "METHOD_NOT_ALLOWED", "Método não permitido.");
+    const auditId = decodeURIComponent(rulesMatch[1]);
+    const sourceId = rulesMatch[2] ? decodeURIComponent(rulesMatch[2]) : null;
+    return sourceId
+      ? downloadRuleDocument(env, json, auditId, sourceId)
+      : listAuditRules(env, json, auditId);
   }
 
   const match = url.pathname.match(/^\/api\/v1\/audits\/([^/]+)(?:\/(findings|evidence|sources|run|dossier\.xlsx))?$/);

@@ -3,5 +3,6 @@ export const queryKeys = {
   audits: (filters = "all") => ["audits", filters] as const,
   audit: (id: string) => ["audit", id] as const,
   findings: (id: string, filters = "all") => ["findings", id, filters] as const,
+  rules: (id: string) => ["audit-rules", id] as const,
   evidence: (id: string) => ["evidence", id] as const,
 };

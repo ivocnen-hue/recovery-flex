@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAuditWorkbook, canonicalizeAudit, sourcesJsonByteLength, streamSourcesJson } from "../src/api-v1.js";
+import { buildAuditWorkbook, canonicalizeAudit, handleV1Request, sourcesJsonByteLength, streamSourcesJson } from "../src/api-v1.js";
 import { repairStoredTabularLayout, sourceMappingKey } from "../src/index.js";
 
 const payload = {
@@ -123,5 +123,39 @@ describe("canonical API v1 adapter", () => {
     expect(workbook.Sheets["3 Pedidos Auditados"].L2.f).toContain("I2-J2");
     expect(workbook.Sheets["3 Pedidos Auditados"].N2.f).toContain("OVERCHARGED");
     expect(workbook.Sheets["5 Controles"].E11.f).toContain("VERIFICADO");
+  });
+
+  it("lists explicit PDF rules and returns the original document", async () => {
+    const ruleSets = [{
+      name: "Regra anexada: regra.pdf",
+      version: "1.0",
+      rules: [{ id: "frete_r12", priority: 100, conditions: [{ field: "weight_g", op: "lt", value: 2000 }], calculation: { type: "fixed", amount: 12 }, source_reference: "regra.pdf" }],
+    }];
+    const env = {
+      DB: { prepare: sql => ({
+        bind: (...values) => ({
+          first: async () => sql.includes("audit_sources")
+            ? { filename: "regra.pdf", raw_r2_key: "raw/rule.pdf" }
+            : { audit_id: values[0] },
+          all: async () => ({ results: [{ source_id: "source-rule", filename: "regra.pdf", parsed_r2_key: "parsed/rule.json" }] }),
+        }),
+      }) },
+      SOURCES: { get: async key => key.startsWith("parsed/")
+        ? { text: async () => JSON.stringify(ruleSets) }
+        : { body: new Blob(["%PDF-1.4"]), httpMetadata: { contentType: "application/pdf" } } },
+    };
+    const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+    const dependencies = { json, auditFull: () => {}, auditFullInput: () => {} };
+    const listUrl = new URL("https://example.test/api/v1/audits/audit-1/rules");
+    const list = await handleV1Request(new Request(listUrl), env, listUrl, dependencies);
+    const payload = await list.json();
+    expect(payload.items[0]).toMatchObject({ filename: "regra.pdf", rule: { id: "frete_r12", calculation: { amount: 12 } } });
+    expect(payload.items[0].download_url).toContain("/rules/source-rule/document");
+
+    const documentUrl = new URL("https://example.test/api/v1/audits/audit-1/rules/source-rule/document");
+    const document = await handleV1Request(new Request(documentUrl), env, documentUrl, dependencies);
+    expect(document.headers.get("content-type")).toBe("application/pdf");
+    expect(document.headers.get("content-disposition")).toContain("regra.pdf");
+    expect(await document.text()).toBe("%PDF-1.4");
   });
 });

@@ -171,6 +171,42 @@ export const EvidenceResponseSchema = z
     items: z.array(EvidenceSchema),
   })
   .strict();
+export const AuditRulesResponseSchema = z.object({
+  ok: z.literal(true),
+  schema_version: SchemaVersion,
+  audit_id: z.string(),
+  items: z.array(z.object({
+    source_id: z.string(),
+    filename: z.string(),
+    rule_set_name: z.string().nullable(),
+    version: z.string().nullable(),
+    scope: z.object({
+      seller_id: z.string().nullable(),
+      marketplace: z.string().nullable(),
+      logistics_mode: z.string().nullable(),
+      carrier: z.string().nullable(),
+    }).strict(),
+    rule: z.object({
+      id: z.string(),
+      priority: z.number().nullable(),
+      conditions: z.array(z.object({
+        field: z.string(),
+        op: z.string(),
+        value: z.unknown().optional(),
+        min: z.unknown().optional(),
+        max: z.unknown().optional(),
+      }).passthrough()),
+      calculation: z.object({
+        type: z.string().optional(),
+        amount: z.number().optional(),
+        rate: z.number().optional(),
+        base_field: z.string().optional(),
+      }).passthrough(),
+      source_reference: z.string().nullable(),
+    }).strict(),
+    download_url: z.string(),
+  }).strict()),
+}).strict();
 export const ApiErrorSchema = z
   .object({
     ok: z.literal(false),

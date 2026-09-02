@@ -6,7 +6,7 @@ import { RulesDrawer } from "../../components/findings/RulesDrawer";
 import { EmptyState, ErrorState, LoadingState } from "../../components/ui/States";
 import { StatusBadge } from "../../components/ui/StatusBadge";
 import type { Finding } from "../../contracts/types";
-import { useAudits, useFindings } from "../../hooks/useRecoveryData";
+import { useAuditRules, useAudits, useFindings } from "../../hooks/useRecoveryData";
 import { filterAndSortFindings, type DossierFilters } from "../../lib/auditFindings";
 import { formatCurrency } from "../../lib/currency";
 import { formatDate } from "../../lib/dates";
@@ -19,6 +19,7 @@ export function Findings() {
   const audits = useAudits();
   const [auditId, setAuditId] = useState("");
   const findings = useFindings(auditId, Boolean(auditId));
+  const auditRules = useAuditRules(auditId, Boolean(auditId));
   const [selected, setSelected] = useState<Finding | null>(null);
   const [filters, setFilters] = useState<DossierFilters>(initialFilters);
   const [exporting, setExporting] = useState(false);
@@ -96,7 +97,7 @@ export function Findings() {
         </section>
 
         <section className="panel dossier-results">
-          <header className="results-header"><div><SlidersHorizontal /><div><h3>Resultados da auditoria</h3><p>{audit?.seller} · {audit?.period}</p></div></div><div className="results-actions"><button className="button subtle" onClick={() => setShowRules(true)}><BookOpenCheck /> Ver regras <span>{rules.length}</span></button><div className="result-summary"><b>{filtered.length.toLocaleString("pt-BR")}</b><span>casos filtrados</span><b>{formatCurrency(totals.recoverable)}</b><span>recuperável</span></div></div></header>
+          <header className="results-header"><div><SlidersHorizontal /><div><h3>Resultados da auditoria</h3><p>{audit?.seller} · {audit?.period}</p></div></div><div className="results-actions"><button className="button subtle" onClick={() => setShowRules(true)}><BookOpenCheck /> Ver regras <span>{auditRules.data?.items.length ?? 0}</span></button><div className="result-summary"><b>{filtered.length.toLocaleString("pt-BR")}</b><span>casos filtrados</span><b>{formatCurrency(totals.recoverable)}</b><span>recuperável</span></div></div></header>
           <div className="dossier-filterbar dossier-hub-filters">
             <label className="filter-field filter-search"><span>Busca geral</span><div><Search /><input aria-label="Busca geral" value={filters.query} onChange={(event) => updateFilter("query", event.target.value)} placeholder="ID, pedido, regra, canal..." /></div></label>
             <label className="filter-field"><span>Rastreio ou pedido</span><input aria-label="Rastreio ou pedido" value={filters.tracking} onChange={(event) => updateFilter("tracking", event.target.value)} placeholder="Número de rastreio" /></label>
@@ -116,6 +117,6 @@ export function Findings() {
         </section>
       </>}
     <FindingDrawer finding={selected} onClose={() => setSelected(null)} />
-    <RulesDrawer findings={items} open={showRules} onClose={() => setShowRules(false)} />
+    <RulesDrawer findings={items} rules={auditRules.data?.items ?? []} loading={auditRules.isLoading} open={showRules} onClose={() => setShowRules(false)} />
   </div>;
 }
