@@ -94,6 +94,41 @@ describe("API client", () => {
       ]);
     }
   });
+  it("preserva perguntas mesmo quando uma resposta de erro futura não passa no contrato completo", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: false,
+      schema_version: "1.0",
+      error: {
+        code: "RULE_CLARIFICATION_REQUIRED",
+        message: "Precisamos de respostas para interpretar o PDF com segurança.",
+        details: {
+          filename: "tabela.pdf",
+          required_inputs: [{
+            id: "seller_reputation",
+            title: "Reputação",
+            question: "Qual era a reputação?",
+            answer_type: "single_choice",
+            options: ["Verde"],
+            // Simula uma evolução parcial do Worker sem o campo help antigo.
+          }],
+        },
+      },
+    }), { status: 422 })));
+
+    try {
+      await request("/test", z.object({ ok: z.literal(true) }));
+      throw new Error("expected request to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(RecoveryError);
+      expect(error).toMatchObject({
+        message: "Precisamos de respostas para interpretar o PDF com segurança.",
+        debug: {
+          filename: "tabela.pdf",
+          required_inputs: [expect.objectContaining({ id: "seller_reputation" })],
+        },
+      });
+    }
+  });
   it("interrompe resposta incompatível", async () => {
     vi.stubGlobal(
       "fetch",

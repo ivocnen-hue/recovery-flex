@@ -6,6 +6,34 @@ export const BASE_URL = (
   "https://recovery-audit-test.ivocnen.workers.dev"
 ).replace(/\/$/, "");
 type RequestOptions = RequestInit & { timeout?: number };
+const asRecord = (value: unknown): Record<string, unknown> | undefined =>
+  value !== null && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : undefined;
+
+const readApiError = (payload: unknown) => {
+  const parsed = ApiErrorSchema.safeParse(payload);
+  if (parsed.success) return parsed.data.error;
+
+  // Error payloads must remain useful even when a newer Worker adds fields or
+  // returns a partially compatible details object. Successful responses stay
+  // strict; this fallback is intentionally limited to non-2xx responses.
+  const error = asRecord(asRecord(payload)?.error);
+  const details = asRecord(error?.details);
+  return {
+    code: typeof error?.code === "string" ? error.code : undefined,
+    message: typeof error?.message === "string" ? error.message : undefined,
+    details: {
+      filename: typeof details?.filename === "string" ? details.filename : undefined,
+      required_inputs: Array.isArray(details?.required_inputs)
+        ? details.required_inputs
+        : undefined,
+      ambiguities: Array.isArray(details?.ambiguities)
+        ? details.ambiguities
+        : undefined,
+    },
+  };
+};
 export async function request<T>(
   endpoint: string,
   schema: ZodType<T>,
@@ -50,7 +78,7 @@ export async function request<T>(
     );
   }
   if (!response.ok) {
-    const parsed = ApiErrorSchema.safeParse(payload);
+    const apiError = readApiError(payload);
     const code =
       response.status === 401
         ? "AUTH_REQUIRED"
@@ -59,16 +87,14 @@ export async function request<T>(
           : "API_ERROR";
     throw new RecoveryError(
       code,
-      parsed.success
-        ? parsed.data.error.message
-        : "A API não conseguiu concluir a solicitação.",
+      apiError.message || "A API não conseguiu concluir a solicitação.",
       {
         endpoint,
         http_status: response.status,
-        api_code: parsed.success ? parsed.data.error.code : undefined,
-        required_inputs: parsed.success ? parsed.data.error.details?.required_inputs : undefined,
-        ambiguities: parsed.success ? parsed.data.error.details?.ambiguities : undefined,
-        filename: parsed.success ? parsed.data.error.details?.filename : undefined,
+        api_code: apiError.code,
+        required_inputs: apiError.details?.required_inputs,
+        ambiguities: apiError.details?.ambiguities,
+        filename: apiError.details?.filename,
       },
     );
   }
