@@ -42,6 +42,7 @@ export const auditsApi = {
       form.set("marketplace", channels.join(", "));
       form.set("operation", input.operation);
       form.set("carrier", input.carrier);
+      form.set("rule_clarifications", JSON.stringify(input.ruleClarifications || {}));
       form.set("file", file, file.name);
       await request(
         "/api/v1/audits/" + encodeURIComponent(draft.audit_id) + "/sources",

@@ -62,7 +62,14 @@ export async function request<T>(
       parsed.success
         ? parsed.data.error.message
         : "A API não conseguiu concluir a solicitação.",
-      { endpoint, http_status: response.status },
+      {
+        endpoint,
+        http_status: response.status,
+        api_code: parsed.success ? parsed.data.error.code : undefined,
+        required_inputs: parsed.success ? parsed.data.error.details?.required_inputs : undefined,
+        ambiguities: parsed.success ? parsed.data.error.details?.ambiguities : undefined,
+        filename: parsed.success ? parsed.data.error.details?.filename : undefined,
+      },
     );
   }
   const parsed = schema.safeParse(payload);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAuditWorkbook, canonicalizeAudit, handleV1Request, sourcesJsonByteLength, streamSourcesJson } from "../src/api-v1.js";
+import { buildAuditWorkbook, canonicalizeAudit, clarificationQuestions, handleV1Request, sourcesJsonByteLength, streamSourcesJson } from "../src/api-v1.js";
 import { repairStoredTabularLayout, sourceMappingKey } from "../src/index.js";
 
 const payload = {
@@ -14,6 +14,17 @@ const payload = {
 };
 
 describe("canonical API v1 adapter", () => {
+  it("turns rule ambiguities into exact questions for the user", () => {
+    const questions = clarificationQuestions([
+      "A vigência não foi informada.",
+      "A reputação do seller não foi fornecida.",
+      "A modalidade Full ou Coleta não está definida.",
+      "A regra exige no máximo metade do preço, mas sale_amount está ausente.",
+    ]);
+    expect(questions.map(item => item.id)).toEqual(["seller_reputation", "logistics_mode", "validity", "price_cap"]);
+    expect(questions.every(item => item.question.endsWith("?"))).toBe(true);
+  });
+
   it("preserves explicit financial calculations", () => {
     expect(1073 * 12).toBe(12876);
     expect(410 * 12).toBe(4920);

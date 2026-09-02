@@ -4,6 +4,8 @@ import { request } from "../src/api/client";
 import { AuditResponseSchema } from "../src/contracts/schemas";
 import { healthApi } from "../src/api/health";
 import { auditsApi } from "../src/api/audits";
+import { RecoveryError } from "../src/lib/errors";
+import { z } from "zod";
 afterEach(() => vi.unstubAllGlobals());
 describe("API client", () => {
   it("consulta e valida o health check canônico", async () => {
@@ -72,6 +74,25 @@ describe("API client", () => {
     await expect(
       request("/api/v1/audits/a", AuditResponseSchema),
     ).rejects.toMatchObject({ code: "API_ERROR", message: "Falha controlada" });
+  });
+  it("preserva perguntas de esclarecimento retornadas pelo Worker", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: false,
+      error: {
+        code: "RULE_CLARIFICATION_REQUIRED",
+        message: "Precisamos de uma resposta.",
+        details: { required_inputs: [{ id: "validity", title: "Vigência", question: "Qual é a vigência?", answer_type: "date_range", options: [], help: "Informe as datas." }] },
+      },
+    }), { status: 422 })));
+    try {
+      await request("/test", z.object({ ok: z.literal(true) }));
+      throw new Error("expected request to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(RecoveryError);
+      expect((error as RecoveryError).debug?.required_inputs).toEqual([
+        expect.objectContaining({ id: "validity", question: "Qual é a vigência?" }),
+      ]);
+    }
   });
   it("interrompe resposta incompatível", async () => {
     vi.stubGlobal(

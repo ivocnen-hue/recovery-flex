@@ -1,9 +1,11 @@
-import { CalendarRange, FileCheck2, FileSpreadsheet, FileText, Handshake, Package, Play, Plus, ShoppingBag, Store, Truck, UploadCloud, X } from "lucide-react";
+import { CalendarRange, CircleHelp, FileCheck2, FileSpreadsheet, FileText, Handshake, Package, Play, Plus, ShoppingBag, Store, Truck, UploadCloud, X } from "lucide-react";
 import { DragEvent, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { AuditInput } from "../../contracts/types";
 import { auditsApi } from "../../api/audits";
 import { humanError } from "../../lib/errors";
+import { RecoveryError } from "../../lib/errors";
+type RequiredInput = { id: string; title: string; question: string; answer_type: string; options: string[]; help: string };
 const stages = [
   "Processando arquivos...",
   "Identificando layouts...",
@@ -22,6 +24,8 @@ export function NewAudit() {
     "DRAFT",
   );
   const [error, setError] = useState("");
+  const [requiredInputs, setRequiredInputs] = useState<RequiredInput[]>([]);
+  const [clarificationAnswers, setClarificationAnswers] = useState<Record<string, string>>({});
   const [periodPreset, setPeriodPreset] = useState("custom");
   const [periodStart, setPeriodStart] = useState("");
   const [periodEnd, setPeriodEnd] = useState("");
@@ -70,6 +74,7 @@ export function NewAudit() {
       periodStart: String(form.get("periodStart")),
       periodEnd: String(form.get("periodEnd")),
       files: [...dataFiles, ...ruleFiles],
+      ruleClarifications: clarificationAnswers,
     };
     if (!payload.channels?.length) {
       setState("FAILED");
@@ -83,12 +88,17 @@ export function NewAudit() {
     }
     setState("PROCESSING");
     setError("");
+    setRequiredInputs([]);
     try {
       await auditsApi.run(payload);
       navigate("/audits");
     } catch (err) {
       setState("FAILED");
       setError(humanError(err));
+      const inputs = err instanceof RecoveryError && Array.isArray(err.debug?.required_inputs)
+        ? err.debug.required_inputs as RequiredInput[]
+        : [];
+      setRequiredInputs(inputs);
     }
   };
   const applyPeriodPreset = (value: string) => {
@@ -178,7 +188,18 @@ export function NewAudit() {
             </div>
           </section>
         )}
-        {error && (
+        {!!requiredInputs.length && <section className="clarification-block">
+          <header><CircleHelp /><div><h3>O Recovery precisa confirmar algumas informações</h3><p>Responda estes pontos antes de aplicar a regra financeira.</p></div></header>
+          <div className="clarification-list">{requiredInputs.map((item, index) => <article key={item.id}>
+            <span>{String(index + 1).padStart(2, "0")}</span><div><b>{item.title}</b><h4>{item.question}</h4>
+              {item.answer_type === "date_range" ? <div className="clarification-dates"><input aria-label={`${item.title} inicial`} type="date" value={clarificationAnswers[`${item.id}_start`] || ""} onChange={(e) => setClarificationAnswers(old => ({ ...old, [`${item.id}_start`]: e.target.value }))} /><input aria-label={`${item.title} final`} type="date" value={clarificationAnswers[`${item.id}_end`] || ""} onChange={(e) => setClarificationAnswers(old => ({ ...old, [`${item.id}_end`]: e.target.value }))} /></div>
+                : item.options.length > 0 ? <select aria-label={item.title} value={clarificationAnswers[item.id] || ""} onChange={(e) => setClarificationAnswers(old => ({ ...old, [item.id]: e.target.value }))}><option value="">Selecione uma resposta</option>{item.options.map(option => <option key={option}>{option}</option>)}</select>
+                  : <input aria-label={item.title} value={clarificationAnswers[item.id] || ""} onChange={(e) => setClarificationAnswers(old => ({ ...old, [item.id]: e.target.value }))} placeholder="Digite sua resposta" />}
+              <small>{item.help}</small></div>
+          </article>)}</div>
+          <footer>Complete as respostas ou anexe o relatório indicado. Depois clique novamente em Executar auditoria.</footer>
+        </section>}
+        {error && !requiredInputs.length && (
           <div className="form-error">
             {error}
             <small>Nenhum fallback financeiro local foi executado.</small>
@@ -195,7 +216,7 @@ export function NewAudit() {
             disabled={!dataFiles.length || state === "PROCESSING"}
           >
             <Play />
-            Executar auditoria
+            {requiredInputs.length ? "Tentar novamente com respostas" : "Executar auditoria"}
           </button>
         </div>
       </form>

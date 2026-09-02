@@ -305,7 +305,7 @@ async function askAI(
     setTimeout(
       () =>
         controller.abort(),
-      60000
+      150000
     );
 
   try {
@@ -1079,6 +1079,11 @@ em regras estruturadas.
 NUNCA presuma que uma regra de um seller,
 marketplace, transportadora, modalidade ou período
 vale para outro.
+
+O campo context.rule_clarifications contém respostas fornecidas
+explicitamente pelo usuário após a primeira análise. Use essas respostas
+para resolver as dúvidas correspondentes, mas nunca permita que elas
+inventem ou substituam tarifas e valores ausentes no documento.
 
 Uma regra pode depender de:
 

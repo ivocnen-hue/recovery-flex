@@ -215,6 +215,18 @@ export const ApiErrorSchema = z
       code: z.string(),
       message: z.string(),
       request_id: z.string().optional(),
-    }),
+      details: z.object({
+        filename: z.string().optional(),
+        required_inputs: z.array(z.object({
+          id: z.string(),
+          title: z.string(),
+          question: z.string(),
+          answer_type: z.string(),
+          options: z.array(z.string()),
+          help: z.string(),
+        }).passthrough()).optional(),
+        ambiguities: z.array(z.string()).optional(),
+      }).passthrough().optional(),
+    }).passthrough(),
   })
   .passthrough();

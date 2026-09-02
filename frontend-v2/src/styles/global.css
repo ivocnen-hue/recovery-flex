@@ -1175,6 +1175,23 @@ td small {
   color: #bf7a80;
   margin-top: 4px;
 }
+.clarification-block { border: 1px solid #725f27; background: linear-gradient(135deg, #211d12, #151713); border-radius: 10px; overflow: hidden; }
+.clarification-block > header { display: flex; gap: 11px; align-items: flex-start; padding: 16px 18px; border-bottom: 1px solid #4a4124; }
+.clarification-block > header svg { width: 21px; color: #e7c85b; flex: none; }
+.clarification-block h3 { margin: 0 0 3px; font-size: 13px; color: #f0e6bd; }
+.clarification-block header p, .clarification-block footer { margin: 0; color: #a99d76; font-size: 10px; }
+.clarification-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.clarification-list article { display: flex; gap: 11px; padding: 14px 18px; border-bottom: 1px solid #302d21; }
+.clarification-list article:nth-child(odd) { border-right: 1px solid #302d21; }
+.clarification-list article > span { display: grid; place-items: center; width: 27px; height: 27px; border-radius: 7px; background: #3a3219; color: #e7c85b; font-size: 9px; font-weight: 800; flex: none; }
+.clarification-list b { color: #d8cfae; font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
+.clarification-list h4 { margin: 4px 0 6px; color: #f5f2e8; font-size: 11px; line-height: 1.4; }
+.clarification-list small { display: block; color: #948b70; font-size: 9px; line-height: 1.4; }
+.clarification-list select, .clarification-list input { width: 100%; min-height: 35px; margin: 0 0 7px; border: 1px solid #514829; border-radius: 7px; background: #11140f; color: #eee9d7; padding: 7px 9px; font: inherit; }
+.clarification-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.answer-options { margin: 0 0 6px; color: #e7c85b; font-size: 9px; }
+.clarification-block footer { padding: 11px 18px; background: #1b190f; }
+@media (max-width: 800px) { .clarification-list { grid-template-columns: 1fr; } .clarification-list article:nth-child(odd) { border-right: 0; } }
 .state {
   min-height: 280px;
   display: flex;

@@ -207,6 +207,10 @@ export async function parseAuditUpload(request) {
     marketplace: String(form.get("marketplace") || ""),
     logistics_mode: String(form.get("operation") || ""),
     carrier: String(form.get("carrier") || ""),
+    rule_clarifications: (() => {
+      try { return JSON.parse(String(form.get("rule_clarifications") || "{}")); }
+      catch { return {}; }
+    })(),
   };
   const sources = [];
   for (const file of files) {
@@ -259,6 +263,10 @@ export async function parseSingleAuditSource(request) {
     marketplace: String(form.get("marketplace") || ""),
     logistics_mode: String(form.get("operation") || ""),
     carrier: String(form.get("carrier") || ""),
+    rule_clarifications: (() => {
+      try { return JSON.parse(String(form.get("rule_clarifications") || "{}")); }
+      catch { return {}; }
+    })(),
   };
   if (extension === "pdf") {
     const parsedRule = await parseRulePdf(file, context);

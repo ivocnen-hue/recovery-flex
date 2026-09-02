@@ -513,8 +513,28 @@ async function downloadDossier(env, json, auditId) {
   });
 }
 
-const apiError = (json, status, code, message) =>
-  json({ ok: false, schema_version: SCHEMA_VERSION, error: { code, message } }, status);
+const apiError = (json, status, code, message, details) =>
+  json({ ok: false, schema_version: SCHEMA_VERSION, error: { code, message, ...(details ? { details } : {}) } }, status);
+
+export const clarificationQuestions = ambiguities => {
+  const text = ambiguities.join(" ").toLowerCase();
+  const questions = [];
+  const add = (id, title, question, answer_type, options, help) => {
+    if (!questions.some(item => item.id === id)) questions.push({ id, title, question, answer_type, options, help });
+  };
+  if (text.includes("reputaç")) add("seller_reputation", "Reputação da conta", "Qual era a reputação da conta no período auditado?", "single_choice", ["MercadoLíder", "Verde", "Sem reputação", "Outra"], "Anexe também um print ou PDF da reputação referente ao período.");
+  if (text.includes("modalidade") || text.includes("logistics_mode") || text.includes("full") || text.includes("coleta") || text.includes("agência")) add("logistics_mode", "Modalidade de envio", "Qual modalidade foi usada nestes pedidos?", "multiple_choice", ["Flex", "Full", "Coleta", "Agência/conveniada", "Outra"], "Se houver mais de uma, informe quais pedidos pertencem a cada modalidade.");
+  if (text.includes("vigência") || text.includes("data de início") || text.includes("data de término")) add("validity", "Vigência da regra", "De qual data até qual data esta tabela era válida?", "date_range", [], "Use as datas publicadas pelo Mercado Livre ou presentes no contrato.");
+  if (text.includes("produto novo") || text.includes("produtos novos") || text.includes("estado do produto")) add("item_condition", "Condição dos produtos", "Os anúncios auditados eram de produtos novos, usados ou ambos?", "single_choice", ["Somente novos", "Somente usados", "Novos e usados"], "A tabela enviada declara aplicação somente a produtos novos.");
+  if (text.includes("frete grátis rápido") || text.includes("opção foi ativada")) add("optional_fast_shipping", "Frete grátis rápido opcional", "A conta aderiu ao frete grátis rápido opcional para produtos abaixo de R$ 79?", "single_choice", ["Sim", "Não", "Não sei"], "Essa escolha altera a tarifa aplicável.");
+  if (text.includes("categoria") || text.includes("livros") || text.includes("alimentos")) add("categories", "Categorias dos anúncios", "O relatório enviado identifica a categoria de cada anúncio?", "file_or_confirmation", ["Sim, está na planilha", "Não, vou anexar o relatório de anúncios"], "Categorias especiais possuem tabelas próprias e precisam ser separadas.");
+  if (text.includes("50%") || text.includes("metade do preço") || text.includes("mínimo entre")) add("price_cap", "Limite de 50%", "A planilha contém o preço de venda de cada item para aplicar o limite de 50%?", "file_or_confirmation", ["Sim, contém o preço", "Não, vou anexar um relatório com os preços"], "Para itens abaixo de R$ 19, o preço é necessário para calcular o teto.");
+  if (text.includes("limites") || text.includes("sobreposição") || text.includes("faixas")) add("range_boundaries", "Limites das faixas", "Como devem ser tratados os valores exatamente no limite entre duas faixas?", "single_choice", ["Pertencem à faixa inferior", "Pertencem à faixa superior", "Preciso confirmar com o Mercado Livre"], "Exemplo: exatamente 0,3 kg não pode cair em duas tarifas.");
+  if (text.includes("peso dimensional") || text.includes("maior deles")) add("billable_weight", "Peso usado na tarifa", "A tarifa usa o peso real, o peso dimensional ou o maior entre os dois?", "single_choice", ["Peso real", "Peso dimensional", "O maior entre os dois", "Preciso confirmar"], "A planilha precisa conter os dados usados para formar esse peso.");
+  if (text.includes("fragmentad") || text.includes("ilegível") || text.includes("celula") || text.includes("célula")) add("readable_table", "Trechos da tabela", "Você consegue anexar uma versão da tabela em que todos os valores estejam completos e selecionáveis?", "single_choice", ["Sim, vou substituir o PDF", "Não, preciso revisar manualmente"], "Valores quebrados não são completados por suposição.");
+  if (text.includes("casos excepcionais") || text.includes("localização do comprador")) add("exception_scope", "Envios com desconto excepcional", "Há pedidos desta auditoria sujeitos a descontos excepcionais por localização?", "single_choice", ["Não", "Sim, e vou anexar a regra correspondente", "Não sei"], "Pedidos afetados precisam da regra complementar antes do cálculo.");
+  return questions;
+};
 
 export const streamSourcesJson = sources => {
   const encoder = new TextEncoder();
@@ -648,9 +668,11 @@ async function uploadSource(request, env, json, auditId, parseRuleSource) {
       for (const source of parsed.ruleSources) {
         const interpreted = await parseRuleSource(env, source, nullableText(audit.seller));
         const ambiguities = Array.isArray(interpreted?.ambiguities) ? interpreted.ambiguities.filter(Boolean) : [];
-        if (ambiguities.length) {
-          throw new Error(`O PDF ${parsed.file.name} contém regras ambíguas: ${ambiguities.join("; ")}`);
-        }
+        if (ambiguities.length) return apiError(json, 422, "RULE_CLARIFICATION_REQUIRED", `Precisamos de ${clarificationQuestions(ambiguities).length} resposta(s) para interpretar ${parsed.file.name} com segurança.`, {
+          filename: parsed.file.name,
+          required_inputs: clarificationQuestions(ambiguities),
+          ambiguities,
+        });
         if (!interpreted?.rule_set?.rules?.length) {
           throw new Error(`Nenhuma regra financeira executável foi identificada no PDF ${parsed.file.name}.`);
         }

@@ -22,4 +22,5 @@ export type AuditInput = {
   periodStart: string;
   periodEnd: string;
   files: File[];
+  ruleClarifications?: Record<string, string>;
 };
