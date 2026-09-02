@@ -27,7 +27,9 @@ export function AppShell() {
   const [open, setOpen] = useState(false);
   const worker = useWorkerHealth();
   const location = useLocation();
-  const title = titles[location.pathname] ?? titles["/"];
+  const title = location.pathname.startsWith("/audits/")
+    ? ["Análise", "Dossiê da auditoria"]
+    : titles[location.pathname] ?? titles["/"];
   return (
     <div className="app-shell">
       <aside className={"sidebar " + (open ? "open" : "")}>
