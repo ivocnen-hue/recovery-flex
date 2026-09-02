@@ -1033,11 +1033,12 @@ td small {
   border-radius: 7px;
   color: #cbd3db;
   background: #0b1016;
+  font-size: 11px;
 }
 .scope-field > select { width: 100%; padding: 0 10px; }
 .date-control { display: flex; align-items: center; gap: 8px; padding: 0 10px; }
 .date-control svg { flex: 0 0 15px; width: 15px; color: #718091; }
-.date-control input { width: 100%; min-width: 0; border: 0; outline: 0; color: #cbd3db; background: transparent; }
+.date-control input { width: 100%; min-width: 0; border: 0; outline: 0; color: #cbd3db; background: transparent; font-size: 11px; }
 .origin-select { position: relative; }
 .origin-select > summary { display: flex; align-items: center; gap: 9px; padding: 0 12px; cursor: pointer; list-style: none; }
 .origin-select > summary::-webkit-details-marker { display: none; }
