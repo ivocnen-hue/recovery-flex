@@ -15,13 +15,13 @@ const nav = [
   ["/", "Dashboard", LayoutDashboard],
   ["/audits", "Auditorias", Activity],
   ["/new-audit", "Nova Auditoria", Plus],
-  ["/findings", "Findings / Casos", FileSearch],
+  ["/findings", "Dossiê", FileSearch],
 ] as const;
 const titles: Record<string, [string, string]> = {
   "/": ["Visão geral", "Dashboard"],
   "/audits": ["Operação", "Auditorias"],
   "/new-audit": ["Operação", "Nova auditoria"],
-  "/findings": ["Análise", "Findings / Casos"],
+  "/findings": ["Análise", "Dossiê"],
 };
 export function AppShell() {
   const [open, setOpen] = useState(false);

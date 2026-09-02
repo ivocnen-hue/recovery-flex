@@ -44,10 +44,17 @@ describe("Fase 1", () => {
     await user.upload(input, new File(["a"], "flex.csv", { type: "text/csv" }));
     expect(screen.getByText("flex.csv")).toBeInTheDocument();
   });
-  it("filtra findings e abre drawer", async () => {
+  it("escolhe auditoria, exibe totais e abre um caso do dossiê", async () => {
     const user = userEvent.setup();
     renderPage(<Findings />);
+    expect(await screen.findByText("Selecione a auditoria acima")).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Escolher auditoria"), demoAudits[0].audit_id);
     await screen.findByText("MEL245987310BR");
+    expect(screen.getByText("Valor total cobrado")).toBeInTheDocument();
+    expect(screen.getByText("Valor total devido")).toBeInTheDocument();
+    expect(screen.getByText("Valor recuperável")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Canal" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Exportar Excel" })).toBeEnabled();
     await user.click(screen.getByText("MEL245987310BR"));
     expect(
       screen.getByRole("dialog", { name: "Detalhe do finding" }),

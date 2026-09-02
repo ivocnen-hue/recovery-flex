@@ -38,7 +38,7 @@ export const useAudits = () =>
         : auditsApi.list(),
     retry: false,
   });
-export const useFindings = (auditId = "latest") =>
+export const useFindings = (auditId = "latest", enabled = true) =>
   useQuery({
     queryKey: queryKeys.findings(auditId),
     queryFn: async () =>
@@ -51,5 +51,6 @@ export const useFindings = (auditId = "latest") =>
             next_cursor: null,
           }
         : findingsApi.list(auditId),
+    enabled,
     retry: false,
   });
