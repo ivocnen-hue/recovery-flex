@@ -59,6 +59,19 @@ describe("canonical API v1 adapter", () => {
     expect(repaired.headers).toEqual(["Conta", "Conta empresarial", "CEP", "Rastreio"]);
   });
 
+  it("promotes the embedded Mercado Livre header row", () => {
+    const repaired = repairStoredTabularLayout(
+      ["Neste relatório, você encontra as informações das suas vendas e tarifas faturadas.", "coluna_2", "coluna_3", "coluna_4", "coluna_5", "coluna_6", "coluna_7", "coluna_8"],
+      [
+        ["Vendas", null, null, null, null, null, null, null],
+        ["N.º de venda", "Data da venda", "SKU", "Unidades", "Número de rastreamento", "CEP", "Título do anúncio", "Estado"],
+        ["123", "2026-08-25", "SKU-1", 2, "TRACK-1", "04065000", "Produto", "Entregue"],
+      ],
+    );
+    expect(repaired.headers).toContain("Número de rastreamento");
+    expect(repaired.rows).toEqual([["123", "2026-08-25", "SKU-1", 2, "TRACK-1", "04065000", "Produto", "Entregue"]]);
+  });
+
   it("serializes staged rows as a stream without changing provenance", async () => {
     const sources = [{ filename: "large.xlsx", sheet: "Vendas", headers: ["SKU"], rows: [["A"], ["B"]] }];
     const serialized = await new Response(streamSourcesJson(sources)).text();

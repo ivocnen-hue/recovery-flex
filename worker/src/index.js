@@ -489,6 +489,25 @@ export function repairStoredTabularLayout(headersInput, rowsInput) {
     if (detected?.score > 0) headers = splitDelimitedRecord(headers[0], detected.delimiter);
   }
 
+  const genericHeaders = headers.filter(header => {
+    const comparable = comparableText(header);
+    return !comparable || comparable.startsWith("coluna_") || comparable.length > 80;
+  }).length;
+  if (headers.length >= 8 && genericHeaders / headers.length >= 0.6) {
+    const embeddedHeaderIndex = rows.slice(0, 12).findIndex(row => {
+      const names = row.map(comparableText);
+      const nonEmpty = names.filter(Boolean).length;
+      return nonEmpty >= 8
+        && names.some(name => name === "sku")
+        && names.some(name => name.includes("rastreamento"))
+        && names.some(name => name === "unidades" || name === "quantidade");
+    });
+    if (embeddedHeaderIndex >= 0) {
+      headers = rows[embeddedHeaderIndex].map((value, index) => normalizeText(value) || `coluna_${index + 1}`);
+      rows = rows.slice(embeddedHeaderIndex + 1);
+    }
+  }
+
   const inspectedRows = rows.slice(0, 100).filter(row => row.some(value => normalizeText(value)));
   const extraColumnRows = inspectedRows.filter(row => row.length === headers.length + 1).length;
   const accountIndex = headers.findIndex(header => comparableText(header) === "conta");
@@ -1262,15 +1281,15 @@ function fieldFromMapping(
 }
 
 const HEADER_ALIASES = {
-  tracking_number: ["tracking", "rastreio", "rastreamento", "codigo de rastreio", "codigo rastreio", "etiqueta"],
-  order_id: ["pedido", "numero do pedido", "id pedido", "order id", "order_id"],
+  tracking_number: ["tracking", "rastreio", "rastreamento", "codigo de rastreio", "codigo rastreio", "etiqueta", "id etiqueta", "numero de rastreamento"],
+  order_id: ["pedido", "numero do pedido", "id pedido", "id do pedido", "n.º de venda", "n. de venda", "order id", "order_id"],
   shipment_id: ["envio", "id envio", "shipment", "shipment id", "shipment_id"],
   pack_id: ["pack", "pack id", "pack_id"],
   sku: ["sku", "codigo sku", "referencia", "seller sku"],
   quantity: ["quantidade", "qtd", "quantity", "unidades"],
   charged_amount: ["valor cobrado", "cobranca", "cobrado", "frete cobrado", "charged amount"],
   sale_amount: ["valor venda", "preco venda", "sale amount"],
-  dimensions: ["dimensoes", "dimensao", "medidas", "dimensions"],
+  dimensions: ["dimensoes", "dimensao", "dimensoes do(s) produto(s)", "medidas", "dimensions"],
   height_cm: ["altura", "altura cm", "height"],
   width_cm: ["largura", "largura cm", "width"],
   length_cm: ["comprimento", "comprimento cm", "length"],
@@ -1278,7 +1297,7 @@ const HEADER_ALIASES = {
   account_id: ["conta", "conta seller", "seller", "seller id", "loja"],
   postal_code: ["cep", "codigo postal", "postal code", "zip code"],
   event_date: ["data", "data envio", "data entrega", "date"],
-  product_name: ["produto", "titulo produto", "descricao produto", "item", "product"]
+  product_name: ["produto", "nome do produto", "titulo produto", "titulo do anuncio", "descricao produto", "item", "product"]
 };
 
 function mappingWithHeaderFallback(mapping, headers) {
@@ -1521,6 +1540,11 @@ function canonicalRowFromSource(
   ) {
     row.weight_g =
       composite.weight_g;
+  }
+
+  const weightHeader = comparableText(mapping.weight_g?.column);
+  if (row.weight_g !== null && weightHeader.includes("peso total sku") && row.weight_g < 100) {
+    row.weight_g *= 1000;
   }
 
   row.volume_cm3 =
