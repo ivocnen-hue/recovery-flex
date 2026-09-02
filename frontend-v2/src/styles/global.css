@@ -970,6 +970,9 @@ td small {
 /* Nova auditoria: contexto compacto e fontes claramente separadas. */
 .new-audit-form { display: grid; gap: 14px; max-width: 1400px; }
 .audit-context-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.new-audit-form .form-section:first-child { position: relative; z-index: 10; overflow: visible; }
+.new-audit-form .audit-context-grid input,
+.new-audit-form .audit-context-grid select { height: 42px; }
 .audit-scope-builder { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(320px, .75fr); gap: 20px; padding: 4px 18px 18px; }
 .origin-builder, .period-builder, .upload-card { min-width: 0; padding: 0; border: 0; background: transparent; }
 .origin-builder > header, .period-builder > header, .upload-card > header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
@@ -982,9 +985,11 @@ td small {
 .origin-options label { position: relative; cursor: pointer; }
 .origin-options input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .origin-options label > span { display: flex; min-height: 38px; align-items: center; gap: 8px; padding: 0 11px; border: 1px solid #2a3643; border-radius: 9px; color: #b9c3cd; background: #0b1118; font-size: 10px; font-weight: 700; transition: .16s ease; }
+.origin-options label > span::before { content: ""; flex: 0 0 15px; width: 15px; height: 15px; border: 1px solid #5c6b7a; border-radius: 4px; background: #090e14; box-shadow: inset 0 0 0 2px #090e14; }
 .origin-options label > span svg { width: 15px; height: 15px; color: var(--muted); }
 .origin-options label:hover > span { border-color: #4b6f60; background: #0e1715; }
 .origin-options label.selected > span { border-color: #4e9777; color: var(--accent); background: #11231c; box-shadow: inset 3px 0 0 var(--accent); }
+.origin-options label.selected > span::before { border-color: var(--accent); background: var(--accent); box-shadow: inset 0 0 0 3px #11231c; }
 .origin-options label.selected > span svg { color: var(--accent); }
 .custom-origin { display: flex; gap: 8px; margin-top: 10px; }
 .custom-origin input, .period-builder input, .period-builder select { width: 100%; min-width: 0; min-height: 42px; border: 1px solid var(--line); border-radius: 10px; padding: 0 12px; color: var(--text); background: var(--bg); }
