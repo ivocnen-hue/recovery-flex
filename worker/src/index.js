@@ -1364,19 +1364,19 @@ const HEADER_ALIASES = {
   order_id: ["pedido", "numero do pedido", "id pedido", "id do pedido", "n.º de venda", "n. de venda", "order id", "order_id"],
   shipment_id: ["envio", "id envio", "shipment", "shipment id", "shipment_id"],
   pack_id: ["pack", "pack id", "pack_id"],
-  sku: ["sku", "codigo sku", "referencia", "seller sku"],
+  sku: ["sku", "codigo sku", "codigo (sku)", "referencia", "seller sku"],
   quantity: ["quantidade", "qtd", "quantity", "unidades"],
   charged_amount: ["valor cobrado", "cobranca", "cobrado", "frete cobrado", "charged amount"],
   sale_amount: ["valor venda", "preco venda", "sale amount"],
   dimensions: ["dimensoes", "dimensao", "dimensoes do(s) produto(s)", "medidas", "dimensions"],
-  height_cm: ["altura", "altura cm", "height"],
-  width_cm: ["largura", "largura cm", "width"],
-  length_cm: ["comprimento", "comprimento cm", "length"],
-  weight_g: ["peso", "peso g", "peso gramas", "weight"],
+  height_cm: ["altura", "altura cm", "altura embalagem", "height"],
+  width_cm: ["largura", "largura cm", "largura embalagem", "width"],
+  length_cm: ["comprimento", "comprimento cm", "comprimento embalagem", "length"],
+  weight_g: ["peso", "peso g", "peso gramas", "peso bruto (kg)", "peso liquido (kg)", "weight"],
   account_id: ["conta", "conta seller", "seller", "seller id", "loja"],
   postal_code: ["cep", "codigo postal", "postal code", "zip code"],
   event_date: ["data", "data envio", "data entrega", "date"],
-  product_name: ["produto", "nome do produto", "titulo produto", "titulo do anuncio", "descricao produto", "item", "product"]
+  product_name: ["produto", "nome do produto", "titulo produto", "titulo do anuncio", "descricao", "descricao produto", "item", "product"]
 };
 
 function mappingWithHeaderFallback(mapping, headers) {
@@ -1403,7 +1403,7 @@ function mappingWithHeaderFallback(mapping, headers) {
 // CANONICAL ROW
 // ============================================================
 
-function canonicalRowFromSource(
+export function canonicalRowFromSource(
   rawRow,
   mappedSource,
   sellerId
@@ -1622,6 +1622,9 @@ function canonicalRowFromSource(
   }
 
   const weightHeader = comparableText(mapping.weight_g?.column);
+  if (row.weight_g !== null && /\(kg\)|\bkg\b/.test(weightHeader)) {
+    row.weight_g *= 1000;
+  }
   if (row.weight_g !== null && weightHeader.includes("peso total sku") && row.weight_g < 100) {
     row.weight_g *= 1000;
   }
@@ -1911,7 +1914,50 @@ export function reconcileSources(canonicalRows) {
 // SELLER PRODUCT CATALOG
 // ============================================================
 
-function buildCatalog(
+export function productCatalogSignal(mappedSource) {
+  const source = mappedSource?.source || {};
+  const mapper = mappedSource?.mapper || {};
+  const mapping = mappingWithHeaderFallback(mapper.mapping || {}, source.headers || []);
+  const identity = comparableText([source.filename, source.sheet, mapper.file_type].filter(Boolean).join(" "));
+  const hasSku = Number.isInteger(Number(mapping.sku?.index)) && Number(mapping.sku.index) >= 0;
+  const physicalFields = ["height_cm", "width_cm", "length_cm", "weight_g", "dimensions"]
+    .filter(field => Number.isInteger(Number(mapping[field]?.index)) && Number(mapping[field].index) >= 0).length;
+  const hasCharge = Number.isInteger(Number(mapping.charged_amount?.index)) && Number(mapping.charged_amount.index) >= 0;
+  const explicitCatalogName = /(produto|catalogo|cadastro|erp|master)/.test(identity);
+
+  return {
+    is_catalog: Boolean(hasSku && physicalFields >= 2 && !hasCharge && explicitCatalogName),
+    has_sku: hasSku,
+    physical_fields: physicalFields,
+    explicit_name: explicitCatalogName
+  };
+}
+
+function catalogProductFromCanonical(row) {
+  return {
+    sku: row.sku,
+    product_name: row.product_name,
+    height_cm: row.height_cm,
+    width_cm: row.width_cm,
+    length_cm: row.length_cm,
+    weight_g: row.weight_g,
+    volume_cm3: row.volume_cm3,
+    source_file: row.source_file,
+    source_sheet: row.source_sheet,
+    source_row: row.source_row ?? null
+  };
+}
+
+function sameCatalogMeasurements(left, right) {
+  return ["height_cm", "width_cm", "length_cm", "weight_g"].every(field => {
+    const a = safeNumber(left?.[field]);
+    const b = safeNumber(right?.[field]);
+    if (a === null || b === null) return true;
+    return Math.abs(a - b) < 0.001;
+  });
+}
+
+export function buildCatalog(
   products
 ) {
   const map =
@@ -1932,29 +1978,56 @@ function buildCatalog(
       continue;
     }
 
-    map.set(
-      sku.toLowerCase(),
-      product
-    );
+    const key = sku.toLowerCase();
+    const previous = map.get(key);
+    const normalized = {
+      ...product,
+      sku,
+      height_cm: safeNumber(product?.height_cm),
+      width_cm: safeNumber(product?.width_cm),
+      length_cm: safeNumber(product?.length_cm),
+      weight_g: safeNumber(product?.weight_g)
+    };
+    normalized.volume_cm3 = calculateVolumeCm3(normalized.height_cm, normalized.width_cm, normalized.length_cm);
+
+    if (!previous) {
+      map.set(key, { ...normalized, catalog_ambiguous: false });
+    } else if (!sameCatalogMeasurements(previous, normalized)) {
+      map.set(key, {
+        ...previous,
+        catalog_ambiguous: true,
+        conflicting_sources: [...new Set([
+          previous.source_file,
+          normalized.source_file
+        ].filter(Boolean))]
+      });
+    }
   }
 
   return map;
 }
 
-function applyProductCatalog(
+export function applyProductCatalog(
   row,
   catalog
 ) {
+  const itemSkus = [...new Set((Array.isArray(row.items) ? row.items : [])
+    .map(item => normalizeText(item?.sku)?.toLowerCase())
+    .filter(Boolean))];
   const sku =
     normalizeText(
       row.sku
     );
 
-  if (!sku) {
+  if (!sku || itemSkus.length > 1) {
     return {
       ...row,
       seller_catalog_match:
-        false
+        false,
+      seller_catalog_ambiguity: itemSkus.length > 1,
+      seller_catalog_reason: itemSkus.length > 1
+        ? "Pacote com múltiplos SKUs; dimensões não foram agregadas automaticamente."
+        : "SKU não identificado para vínculo com o catálogo do seller."
     };
   }
 
@@ -1967,7 +2040,33 @@ function applyProductCatalog(
     return {
       ...row,
       seller_catalog_match:
-        false
+        false,
+      seller_catalog_ambiguity: false,
+      seller_catalog_reason: "SKU não encontrado no catálogo do seller."
+    };
+  }
+
+  if (product.catalog_ambiguous) {
+    return {
+      ...row,
+      seller_catalog_match: false,
+      seller_catalog_ambiguity: true,
+      seller_catalog_reason: "O catálogo contém medidas conflitantes para o mesmo SKU.",
+      seller_catalog_conflicting_sources: product.conflicting_sources || []
+    };
+  }
+
+  const missingPhysicalFields = ["height_cm", "width_cm", "length_cm", "weight_g"]
+    .filter(field => safeNumber(product?.[field]) === null);
+  if (missingPhysicalFields.length) {
+    return {
+      ...row,
+      seller_catalog_match: false,
+      seller_catalog_ambiguity: true,
+      seller_catalog_reason: `Cadastro do seller incompleto para o SKU (${missingPhysicalFields.join(", ")}).`,
+      seller_catalog_source_file: product.source_file || null,
+      seller_catalog_source_sheet: product.source_sheet || null,
+      seller_catalog_source_row: product.source_row ?? null
     };
   }
 
@@ -1976,6 +2075,14 @@ function applyProductCatalog(
 
     seller_catalog_match:
       true,
+    seller_catalog_ambiguity:
+      false,
+    seller_catalog_source_file:
+      product.source_file || null,
+    seller_catalog_source_sheet:
+      product.source_sheet || null,
+    seller_catalog_source_row:
+      product.source_row ?? null,
 
     marketplace_height_cm:
       row.height_cm,
@@ -1987,7 +2094,10 @@ function applyProductCatalog(
       row.length_cm,
 
     marketplace_weight_g:
-      row.weight_g
+      row.weight_g,
+
+    marketplace_volume_cm3:
+      calculateVolumeCm3(row.height_cm, row.width_cm, row.length_cm)
   };
 
   const sellerHeight =
@@ -2038,6 +2148,11 @@ function applyProductCatalog(
       sellerWeight;
   }
 
+  out.seller_height_cm = sellerHeight;
+  out.seller_width_cm = sellerWidth;
+  out.seller_length_cm = sellerLength;
+  out.seller_weight_g = sellerWeight;
+
   out.volume_cm3 =
     calculateVolumeCm3(
       out.height_cm,
@@ -2047,6 +2162,20 @@ function applyProductCatalog(
 
   const dimensions = [out.height_cm, out.width_cm, out.length_cm].filter(value => safeNumber(value) !== null).map(Number);
   out.max_dimension_cm = dimensions.length ? Math.max(...dimensions) : null;
+  out.seller_volume_cm3 = out.volume_cm3;
+  const comparablePairs = [
+    [sellerHeight, out.marketplace_height_cm],
+    [sellerWidth, out.marketplace_width_cm],
+    [sellerLength, out.marketplace_length_cm],
+    [sellerWeight, out.marketplace_weight_g]
+  ].filter(([seller, marketplace]) => seller !== null && safeNumber(marketplace) !== null);
+  out.marketplace_measurement_discrepancy = comparablePairs.some(([seller, marketplace]) => Math.abs(seller - Number(marketplace)) > 0.001);
+  out.volume_difference_cm3 = out.marketplace_volume_cm3 === null || out.seller_volume_cm3 === null
+    ? null
+    : out.marketplace_volume_cm3 - out.seller_volume_cm3;
+  out.weight_difference_g = out.marketplace_weight_g === null || sellerWeight === null
+    ? null
+    : Number(out.marketplace_weight_g) - sellerWeight;
 
   return out;
 }
@@ -2167,6 +2296,20 @@ function ruleConditionMatches(
     default:
       return false;
   }
+}
+
+function ruleResultDependsOnPhysicalMeasurements(ruleResult, ruleSets) {
+  const physicalFields = new Set(["height_cm", "width_cm", "length_cm", "weight_g", "volume_cm3", "max_dimension_cm", "dimensional_weight_g", "billable_weight_g"]);
+  const ruleId = ruleResult?.matched_rule_id;
+  if (!ruleId) return false;
+  for (const ruleSet of Array.isArray(ruleSets) ? ruleSets : []) {
+    for (const rule of Array.isArray(ruleSet?.rules) ? ruleSet.rules : []) {
+      if (String(rule?.id) !== String(ruleId)) continue;
+      return (Array.isArray(rule.conditions) ? rule.conditions : [])
+        .some(condition => physicalFields.has(condition?.field));
+    }
+  }
+  return false;
 }
 
 // ============================================================
@@ -2690,11 +2833,14 @@ export async function auditFullInput(
   // ----------------------------------------------------------
 
   const canonicalRows = [];
+  const discoveredCatalogProducts = [];
+  const catalogSourceFiles = [];
 
   for (
     const mappedSource
     of mappedSources
   ) {
+    const catalogSignal = productCatalogSignal(mappedSource);
     for (const [rowIndex, rawRow] of mappedSource.source.rows.entries()) {
       const canonical =
         canonicalRowFromSource(
@@ -2703,6 +2849,14 @@ export async function auditFullInput(
           sellerId
         );
       canonical.source_row = rowIndex + 2;
+
+      if (catalogSignal.is_catalog) {
+        if (canonical.sku && [canonical.height_cm, canonical.width_cm, canonical.length_cm, canonical.weight_g]
+          .some(value => safeNumber(value) !== null)) {
+          discoveredCatalogProducts.push(catalogProductFromCanonical(canonical));
+        }
+        continue;
+      }
 
       const useful =
         identifierKeys(
@@ -2719,6 +2873,7 @@ export async function auditFullInput(
         );
       }
     }
+    if (catalogSignal.is_catalog) catalogSourceFiles.push(mappedSource.source.filename);
   }
 
   if (
@@ -2856,7 +3011,10 @@ export async function auditFullInput(
 
   const catalog =
     buildCatalog(
-      productCatalog
+      [
+        ...productCatalog,
+        ...discoveredCatalogProducts
+      ]
     );
 
   // ----------------------------------------------------------
@@ -2876,11 +3034,24 @@ export async function auditFullInput(
         catalog
       );
 
-    const ruleResult =
+    let ruleResult =
       executeRulesForRow(
         row,
         ruleSets
       );
+
+    if (
+      catalog.size > 0 &&
+      !row.seller_catalog_match &&
+      ruleResultDependsOnPhysicalMeasurements(ruleResult, ruleSets)
+    ) {
+      ruleResult = {
+        ...ruleResult,
+        status: "SELLER_CATALOG_REVIEW_REQUIRED",
+        expected_amount: null,
+        ambiguity: row.seller_catalog_reason || "Não foi possível vincular medidas completas e inequívocas do ERP a este envio."
+      };
+    }
 
     const charged =
       safeNumber(
@@ -3006,6 +3177,46 @@ export async function auditFullInput(
           row.seller_catalog_match ||
           false,
 
+        seller_catalog_ambiguity:
+          row.seller_catalog_ambiguity ||
+          false,
+
+        seller_catalog_reason:
+          row.seller_catalog_reason ||
+          null,
+
+        seller_catalog_source_file:
+          row.seller_catalog_source_file ||
+          null,
+
+        seller_catalog_source_sheet:
+          row.seller_catalog_source_sheet ||
+          null,
+
+        seller_catalog_source_row:
+          row.seller_catalog_source_row ??
+          null,
+
+        seller_height_cm:
+          row.seller_height_cm ??
+          null,
+
+        seller_width_cm:
+          row.seller_width_cm ??
+          null,
+
+        seller_length_cm:
+          row.seller_length_cm ??
+          null,
+
+        seller_weight_g:
+          row.seller_weight_g ??
+          null,
+
+        seller_volume_cm3:
+          row.seller_volume_cm3 ??
+          null,
+
         marketplace_height_cm:
           row
             .marketplace_height_cm ??
@@ -3024,6 +3235,22 @@ export async function auditFullInput(
         marketplace_weight_g:
           row
             .marketplace_weight_g ??
+          null,
+
+        marketplace_volume_cm3:
+          row.marketplace_volume_cm3 ??
+          null,
+
+        marketplace_measurement_discrepancy:
+          row.marketplace_measurement_discrepancy ||
+          false,
+
+        volume_difference_cm3:
+          row.volume_difference_cm3 ??
+          null,
+
+        weight_difference_g:
+          row.weight_difference_g ??
           null
       },
 
@@ -3034,10 +3261,10 @@ export async function auditFullInput(
           null,
 
         source_files:
-          row.matched_sources ||
-          [
-            row.source_file
-          ].filter(Boolean),
+          [...new Set([
+            ...(row.matched_sources || [row.source_file]),
+            row.seller_catalog_source_file
+          ].filter(Boolean))],
 
         reconciliation: {
           method: row.reconciliation_method || "unmatched",
@@ -3080,6 +3307,18 @@ export async function auditFullInput(
     summary: {
       source_count:
         mappedSources.length,
+
+      seller_catalog_sources:
+        catalogSourceFiles.length,
+
+      seller_catalog_products:
+        catalog.size,
+
+      seller_catalog_matches:
+        results.filter(item => item.technical_data?.seller_catalog_match).length,
+
+      marketplace_measurement_discrepancies:
+        results.filter(item => item.technical_data?.marketplace_measurement_discrepancy).length,
 
       normalized_rows:
         canonicalRows.length,

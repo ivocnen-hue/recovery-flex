@@ -2,7 +2,7 @@ import { X } from "lucide-react";
 import type { Finding } from "../../contracts/types";
 import { formatCurrency } from "../../lib/currency";
 import { formatConfidence } from "../../lib/confidence";
-import { findingDimensionsDisplay, findingProductDisplay, findingSkuDisplay } from "../../lib/findings";
+import { findingDimensionsDisplay, findingMeasurementComparison, findingProductDisplay, findingSkuDisplay } from "../../lib/findings";
 import { StatusBadge } from "../ui/StatusBadge";
 import { EvidenceChain } from "./EvidenceChain";
 export function FindingDrawer({
@@ -14,6 +14,7 @@ export function FindingDrawer({
 }) {
   if (!finding) return null;
   const technical = findingDimensionsDisplay(finding);
+  const comparison = findingMeasurementComparison(finding);
   return (
     <>
       <button
@@ -59,6 +60,21 @@ export function FindingDrawer({
               </div>
             </div>
           </section>
+          {comparison && <section>
+            <h3>ERP do seller × marketplace</h3>
+            <dl className="detail-list">
+              <div><dt>Vínculo com ERP</dt><dd>{comparison.matched ? "SKU exato e cadastro completo" : "Pendente de revisão"}</dd></div>
+              <div><dt>Dimensões ERP</dt><dd>{comparison.sellerDimensions}</dd></div>
+              <div><dt>Dimensões marketplace</dt><dd>{comparison.marketplaceDimensions}</dd></div>
+              <div><dt>Peso ERP</dt><dd>{comparison.sellerWeight}</dd></div>
+              <div><dt>Peso marketplace</dt><dd>{comparison.marketplaceWeight}</dd></div>
+              <div><dt>Cubagem ERP</dt><dd>{comparison.sellerVolume}</dd></div>
+              <div><dt>Cubagem marketplace</dt><dd>{comparison.marketplaceVolume}</dd></div>
+              <div><dt>Comparação</dt><dd>{comparison.discrepancy ? "Divergência identificada" : comparison.matched ? "Sem divergência" : "Não comparada"}</dd></div>
+              <div><dt>Fonte ERP</dt><dd>{comparison.source ?? "Não vinculada"}</dd></div>
+              {comparison.reason && <div><dt>Pendência</dt><dd>{comparison.reason}</dd></div>}
+            </dl>
+          </section>}
           <section>
             <h3>Identificadores e matching</h3>
             <dl className="detail-list">

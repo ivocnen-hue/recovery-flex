@@ -31,3 +31,32 @@ export function findingDimensionsDisplay(finding: Finding) {
     : `${data.volume_cm3.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} cm³`;
   return { dimensions, weight, volume };
 }
+
+export function findingMeasurementComparison(finding: Finding) {
+  const data = finding.technical_data;
+  if (!data) return null;
+  const formatDimensions = (length?: number | null, width?: number | null, height?: number | null) =>
+    [length, width, height].every(value => value != null)
+      ? `${[length, width, height].map(value => Number(value).toLocaleString("pt-BR")).join(" × ")} cm`
+      : "Não identificado";
+  const formatWeight = (value?: number | null) => value == null
+    ? "Não identificado"
+    : value >= 1000
+      ? `${(value / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} kg`
+      : `${value.toLocaleString("pt-BR")} g`;
+  const formatVolume = (value?: number | null) => value == null
+    ? "Não identificada"
+    : `${value.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} cm³`;
+  return {
+    sellerDimensions: formatDimensions(data.seller_length_cm, data.seller_width_cm, data.seller_height_cm),
+    marketplaceDimensions: formatDimensions(data.marketplace_length_cm, data.marketplace_width_cm, data.marketplace_height_cm),
+    sellerWeight: formatWeight(data.seller_weight_g),
+    marketplaceWeight: formatWeight(data.marketplace_weight_g),
+    sellerVolume: formatVolume(data.seller_volume_cm3),
+    marketplaceVolume: formatVolume(data.marketplace_volume_cm3),
+    matched: Boolean(data.seller_catalog_match),
+    discrepancy: Boolean(data.marketplace_measurement_discrepancy),
+    source: data.seller_catalog_source_file ?? null,
+    reason: data.seller_catalog_reason ?? null,
+  };
+}

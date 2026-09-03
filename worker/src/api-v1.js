@@ -88,6 +88,25 @@ export function canonicalizeAudit(payload, input = {}, forcedAuditId) {
         length_cm: nullableNumber(result?.technical_data?.length_cm),
         weight_g: nullableNumber(result?.technical_data?.weight_g),
         volume_cm3: nullableNumber(result?.technical_data?.volume_cm3),
+        seller_catalog_match: Boolean(result?.technical_data?.seller_catalog_match),
+        seller_catalog_ambiguity: Boolean(result?.technical_data?.seller_catalog_ambiguity),
+        seller_catalog_reason: nullableText(result?.technical_data?.seller_catalog_reason),
+        seller_catalog_source_file: nullableText(result?.technical_data?.seller_catalog_source_file),
+        seller_catalog_source_sheet: nullableText(result?.technical_data?.seller_catalog_source_sheet),
+        seller_catalog_source_row: nullableNumber(result?.technical_data?.seller_catalog_source_row),
+        seller_height_cm: nullableNumber(result?.technical_data?.seller_height_cm),
+        seller_width_cm: nullableNumber(result?.technical_data?.seller_width_cm),
+        seller_length_cm: nullableNumber(result?.technical_data?.seller_length_cm),
+        seller_weight_g: nullableNumber(result?.technical_data?.seller_weight_g),
+        seller_volume_cm3: nullableNumber(result?.technical_data?.seller_volume_cm3),
+        marketplace_height_cm: nullableNumber(result?.technical_data?.marketplace_height_cm),
+        marketplace_width_cm: nullableNumber(result?.technical_data?.marketplace_width_cm),
+        marketplace_length_cm: nullableNumber(result?.technical_data?.marketplace_length_cm),
+        marketplace_weight_g: nullableNumber(result?.technical_data?.marketplace_weight_g),
+        marketplace_volume_cm3: nullableNumber(result?.technical_data?.marketplace_volume_cm3),
+        marketplace_measurement_discrepancy: Boolean(result?.technical_data?.marketplace_measurement_discrepancy),
+        volume_difference_cm3: nullableNumber(result?.technical_data?.volume_difference_cm3),
+        weight_difference_g: nullableNumber(result?.technical_data?.weight_difference_g),
       },
       evidence,
     };
@@ -401,16 +420,33 @@ export function buildAuditWorkbook(audit, findings) {
   const dimensionGroups = new Map();
   for (const item of findings) {
     const technical = item.technical_data || {};
-    const maximum = [technical.height_cm, technical.width_cm, technical.length_cm]
+    const sellerDimensions = [technical.seller_height_cm, technical.seller_width_cm, technical.seller_length_cm];
+    const marketplaceDimensions = [technical.marketplace_height_cm, technical.marketplace_width_cm, technical.marketplace_length_cm];
+    const effectiveDimensions = sellerDimensions.every(value => value != null)
+      ? sellerDimensions
+      : [technical.height_cm, technical.width_cm, technical.length_cm];
+    const maximum = effectiveDimensions
       .filter(value => value != null)
       .reduce((max, value) => Math.max(max, Number(value)), 0) || null;
     const displayedSku = skuDisplay(item);
-    const key = [displayedSku || "SEM SKU", item.quantity ?? "", technical.dimensions_raw || "", technical.weight_g ?? ""].join("|");
+    const sellerDimensionText = sellerDimensions.every(value => value != null) ? sellerDimensions.join(" × ") : null;
+    const marketplaceDimensionText = marketplaceDimensions.every(value => value != null) ? marketplaceDimensions.join(" × ") : technical.dimensions_raw;
+    const key = [displayedSku || "SEM SKU", item.quantity ?? "", sellerDimensionText || "", marketplaceDimensionText || "", technical.seller_weight_g ?? "", technical.marketplace_weight_g ?? ""].join("|");
     const group = dimensionGroups.get(key) || {
       sku: displayedSku || "SEM SKU IDENTIFICADO",
       quantity: item.quantity,
-      dimensions: technical.dimensions_raw,
-      weight: technical.weight_g,
+      sellerDimensions: sellerDimensionText,
+      marketplaceDimensions: marketplaceDimensionText,
+      sellerWeight: technical.seller_weight_g,
+      marketplaceWeight: technical.marketplace_weight_g,
+      sellerVolume: technical.seller_volume_cm3,
+      marketplaceVolume: technical.marketplace_volume_cm3,
+      volumeDifference: technical.volume_difference_cm3,
+      weightDifference: technical.weight_difference_g,
+      catalogMatch: technical.seller_catalog_match,
+      catalogReason: technical.seller_catalog_reason,
+      catalogSource: technical.seller_catalog_source_file,
+      discrepancy: technical.marketplace_measurement_discrepancy,
       maximum,
       findings: 0,
     };
@@ -420,22 +456,32 @@ export function buildAuditWorkbook(audit, findings) {
   const dimensionRows = [...dimensionGroups.values()].map(group => [
     group.sku,
     group.quantity,
-    excelText(group.dimensions),
-    group.weight,
+    excelText(group.sellerDimensions),
+    group.sellerWeight,
+    group.sellerVolume,
+    excelText(group.marketplaceDimensions),
+    group.marketplaceWeight,
+    group.marketplaceVolume,
+    group.volumeDifference,
+    group.weightDifference,
     group.maximum,
-    group.quantity != null && group.quantity <= 3 && group.weight != null && group.weight < 2000 && group.maximum != null && group.maximum <= 80 ? "SIM" : "PENDENTE",
+    group.catalogMatch ? "VÍNCULO EXATO" : "REVISAR",
+    group.discrepancy ? "DIVERGENTE" : (group.catalogMatch ? "IGUAL" : "NÃO COMPARADO"),
+    excelText(group.catalogSource),
+    excelText(group.catalogReason),
+    group.quantity != null && group.quantity <= 3 && group.sellerWeight != null && group.sellerWeight < 2000 && group.maximum != null && group.maximum <= 80 ? "SIM" : "PENDENTE",
     group.findings,
   ]);
   const dimensionsSheet = XLSX.utils.aoa_to_sheet([
-    ["DIMENSOES OBSERVADAS NOS ENVIOS — FLEX"],
-    ["Regra auditada: ate 3 unidades, peso menor que 2 kg e maior dimensao de ate 80 cm."],
+    ["DIMENSÕES ERP DO SELLER × MEDIÇÕES DO MARKETPLACE"],
+    ["A medida do ERP é a referência física somente quando o SKU possui vínculo exato e cadastro completo. Divergências e pacotes com múltiplos SKUs ficam em revisão."],
     [],
-    ["SKU", "Qtd. unidades", "Dimensão", "Peso (g)", "Maior dimensão (cm)", "Atende regra?", "Findings"],
+    ["SKU", "Qtd.", "Dimensões ERP (cm)", "Peso ERP (g)", "Cubagem ERP (cm³)", "Dimensões marketplace (cm)", "Peso marketplace (g)", "Cubagem marketplace (cm³)", "Dif. cubagem (cm³)", "Dif. peso (g)", "Maior dimensão ERP (cm)", "Vínculo ERP", "Comparação", "Arquivo ERP", "Motivo / pendência", "Atende regra física?", "Casos"],
     ...dimensionRows,
   ]);
-  dimensionsSheet["!autofilter"] = { ref: `A4:G${Math.max(5, dimensionRows.length + 4)}` };
+  dimensionsSheet["!autofilter"] = { ref: `A4:Q${Math.max(5, dimensionRows.length + 4)}` };
   dimensionsSheet["!freeze"] = { xSplit: 0, ySplit: 4 };
-  dimensionsSheet["!cols"] = [{ wch: 30 }, { wch: 15 }, { wch: 30 }, { wch: 14 }, { wch: 22 }, { wch: 18 }, { wch: 14 }];
+  dimensionsSheet["!cols"] = [28,8,25,14,20,30,20,25,20,16,24,16,16,45,55,22,10].map(wch => ({ wch }));
   XLSX.utils.book_append_sheet(workbook, dimensionsSheet, "2 Dimensoes x Quantidade");
 
   const evidenceRows = [];

@@ -155,7 +155,21 @@ describe("canonical API v1 adapter", () => {
   });
 
   it("builds an auditable Excel dossier with formulas and completeness checks", () => {
-    const canonical = canonicalizeAudit(payload, {
+    const payloadWithMeasurements = {
+      ...payload,
+      results: payload.results.map((item, index) => index ? item : {
+        ...item,
+        sku: "SKU-ERP",
+        technical_data: {
+          height_cm: 10, width_cm: 45, length_cm: 37, weight_g: 960, volume_cm3: 16650,
+          seller_catalog_match: true, seller_catalog_source_file: "produtos_erp.xls",
+          seller_height_cm: 10, seller_width_cm: 45, seller_length_cm: 37, seller_weight_g: 960, seller_volume_cm3: 16650,
+          marketplace_height_cm: 20, marketplace_width_cm: 50, marketplace_length_cm: 40, marketplace_weight_g: 1400, marketplace_volume_cm3: 40000,
+          marketplace_measurement_discrepancy: true, volume_difference_cm3: 23350, weight_difference_g: 440,
+        },
+      }),
+    };
+    const canonical = canonicalizeAudit(payloadWithMeasurements, {
       seller: "Casa Alva",
       marketplace: "Mercado Livre, Shopee",
       operation: "Flex",
@@ -181,6 +195,9 @@ describe("canonical API v1 adapter", () => {
     expect(workbook.Sheets["3 Pedidos Auditados"].L2.f).toContain("I2-J2");
     expect(workbook.Sheets["3 Pedidos Auditados"].N2.f).toContain("OVERCHARGED");
     expect(workbook.Sheets["5 Controles"].E11.f).toContain("VERIFICADO");
+    expect(workbook.Sheets["2 Dimensoes x Quantidade"].C5.v).toBe("10 × 45 × 37");
+    expect(workbook.Sheets["2 Dimensoes x Quantidade"].F5.v).toBe("20 × 50 × 40");
+    expect(workbook.Sheets["2 Dimensoes x Quantidade"].L5.v).toBe("VÍNCULO EXATO");
   });
 
   it("lists explicit PDF rules and returns the original document", async () => {
