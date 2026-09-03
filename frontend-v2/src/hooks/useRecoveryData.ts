@@ -5,7 +5,8 @@ import { healthApi } from "../api/health";
 import { rulesApi } from "../api/rules";
 import { queryKeys } from "../api/queryKeys";
 import { demoAudit, demoAudits, demoFindings, demoRules } from "../mocks/demoData";
-export const DEMO_MODE = import.meta.env.VITE_DEMO_MODE !== "false";
+export const DEMO_MODE =
+  import.meta.env.VITE_DEMO_MODE === "true" || import.meta.env.MODE === "test";
 export const useWorkerHealth = () =>
   useQuery({
     queryKey: queryKeys.health(),
